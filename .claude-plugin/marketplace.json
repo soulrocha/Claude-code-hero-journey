@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-hero-journey",
+  "description": "Mods do Claude Code Hero Journey: a HUD de RPG com os caranguejos Clawd / Claude Code Hero Journey mods: the Clawd RPG HUD",
+  "owner": {
+    "name": "Saulo Rocha"
+  },
+  "plugins": [
+    {
+      "name": "clawd-hud",
+      "source": "./mods/clawd-hud",
+      "description": "HUD de RPG aconchegante para o Claude Code, com os caranguejos Clawd multiclasse (pt-BR e English)"
+    }
+  ]
+}

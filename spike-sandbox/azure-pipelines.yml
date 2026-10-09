@@ -1,0 +1,5 @@
+# Arquivo falso para a sonda 3b do clawd-hud-spike.
+trigger:
+  - main
+steps:
+  - script: echo "spike"

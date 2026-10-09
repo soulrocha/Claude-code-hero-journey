@@ -1,0 +1,50 @@
+{
+  "name": "clawd-hud",
+  "version": "0.4.0",
+  "description": "HUD de RPG aconchegante para o Claude Code, com os caranguejos Clawd multiclasse (pt-BR e English)",
+  "author": {
+    "name": "Saulo Rocha",
+    "url": "https://www.linkedin.com/in/soulrocha"
+  },
+  "repository": "https://github.com/soulrocha/Claude-code-hero-journey",
+  "license": "MIT",
+  "homepage": "https://github.com/soulrocha/Claude-code-hero-journey",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Língua da HUD / HUD language",
+      "description": "auto segue a língua do Claude; pt-BR ou en fixam / auto follows Claude's language; pt-BR or en pin it",
+      "default": "auto",
+      "options": [
+        "auto",
+        "pt-BR",
+        "en"
+      ]
+    },
+    "protect": {
+      "type": "string",
+      "title": "Protegidos extras / Extra protected globs",
+      "description": "Globs separados por vírgula, além de .env*, pipelines e appsettings de produção / Comma-separated globs on top of the defaults",
+      "default": ""
+    },
+    "allow": {
+      "type": "string",
+      "title": "Sempre liberados / Always-allowed globs",
+      "description": "Globs separados por vírgula que o guarda nunca bloqueia / Comma-separated globs the guard never blocks",
+      "default": ""
+    },
+    "vaultPath": {
+      "type": "string",
+      "title": "Você usa um vault (Obsidian)? Caminho da pasta / Do you use a vault (Obsidian)? Folder path",
+      "description": "Deixe vazio se não usa. Ex.: C:\\Notas. O grimório grava decisões e conquistas nele, só com o seu clique / Leave empty if you do not use one. The grimoire writes decisions and wins there, only on your click",
+      "default": ""
+    },
+    "vaultInbox": {
+      "type": "string",
+      "title": "Pasta de entrada no vault / Vault inbox folder",
+      "description": "Subpasta do vault onde o grimório deixa as notas novas / Vault subfolder where the grimoire drops new notes",
+      "default": "Inbox"
+    }
+  }
+}
