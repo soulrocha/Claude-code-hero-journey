@@ -8,7 +8,7 @@ import { CLASSES, classColor, crab, doneQuestsArt, itemIcon, linkIcon, meter, qu
 import { isOn, isShown, MODULES, SECTIONS } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
 import { GITHUB_URL, LINKEDIN_URL, pxOf, svg, title, VERSION } from '../../core/ui'
-import { currentChapter, titleOf } from '../campanha/campanha'
+import { titleOf } from '../campanha/campanha'
 import { questView } from './painel'
 
 export type PaneData = {
@@ -52,14 +52,18 @@ export const mainView = (c: Ctx, d: PaneData, act: PaneActions, report: RenderEl
   )
 }
 
-/** Com mais de um capítulo, o objetivo é o pedido do capítulo atual e o primeiro vira "começou como". */
-const objectiveOf = (campaign: Campaign | null) => {
+/**
+ * O objetivo é o último pedido de verdade (5 palavras ou mais) depois do
+ * primeiro, e o primeiro vira "começou como". Resposta curta ("sim", "ok")
+ * não muda o objetivo.
+ */
+export const objectiveOf = (campaign: Campaign | null) => {
   if (campaign === null) return { text: '', origin: '', n: 0 }
   const n = campaign.chapters.length
-  const chapter = currentChapter(campaign)
-  if (n > 1 && chapter !== undefined) return { text: titleOf(chapter.prompt), origin: campaign.title, n }
-  const text = campaign.objective.length > 160 ? `${campaign.objective.slice(0, 159)}…` : campaign.objective
-  return { text, origin: '', n }
+  const later = campaign.chapters.slice(1).filter(ch => ch.prompt.trim().split(/\s+/).length >= 5)
+  const chapter = later[later.length - 1]
+  if (chapter !== undefined) return { text: titleOf(chapter.prompt), origin: campaign.title, n }
+  return { text: campaign.objective, origin: '', n }
 }
 
 const objectiveSection = (c: Ctx, campaign: Campaign | null, quests: readonly Quest[], act: PaneActions) => {
@@ -78,7 +82,7 @@ const objectiveSection = (c: Ctx, campaign: Campaign | null, quests: readonly Qu
         </Text>
       )}
       {campaign !== null && (
-        <Text key="chapter-line" dimColor wrap="truncate-end">
+        <Text key="chapter-line" dimColor wrap="wrap">
           {c.t.chapterLine(o.n, o.origin)}
         </Text>
       )}
@@ -106,7 +110,7 @@ const questSection = (c: Ctx, quests: readonly Quest[]) => {
     <Box key="quests" flexDirection="column" gap={c.desktop ? 1 : 0}>
       <Box flexDirection="row" alignItems="center">
         <Box flexGrow={1} alignItems={c.skin === 'epico' ? 'center' : 'flex-start'}>
-          {title(c, c.t.section.quests, q.current === undefined && done > 0 ? '?' : '!')}
+          {title(c, c.t.section.quests, q.current === undefined && done > 0 ? '?' : '!', quests.length > 0 ? 48 : 0)}
         </Box>
         {quests.length > 0 && <Text dimColor>{`${done}/${quests.length}`}</Text>}
       </Box>
@@ -160,23 +164,22 @@ const partySections = (c: Ctx, d: PaneData, act: PaneActions) => {
   if (!showParty && !showInv) return null
   if (d.prefs.partyJoined && showParty && showInv) {
     const on = d.partyTab
+    // A aba ativa ganha moldura (o Button do desktop é nativo com ou sem `plain`).
+    const tab = (id: 'grupo' | 'inventario', label: string) => (
+      <Box
+        key={`tab-box-${id}`}
+        borderStyle={c.desktop && on === id ? 'round' : undefined}
+        borderColor={c.desktop && on === id ? TONE[c.palette].gildDim : undefined}
+        paddingX={c.desktop && on === id ? 1 : 0}
+      >
+        <Button key={`tab-${id}`} plain dimColor={on !== id} label={`${on === id ? '◆' : '◇'} ${label}`} onPress={() => act.tab(id)} />
+      </Box>
+    )
     return (
       <Box key="party" flexDirection="column">
         <Box flexDirection="row" gap={1} alignItems="center" justifyContent={c.skin === 'epico' ? 'center' : 'flex-start'}>
-          <Button
-            key="tab-grupo"
-            plain={on !== 'grupo' || undefined}
-            dimColor={on !== 'grupo'}
-            label={`${on === 'grupo' ? '◆' : '◇'} ${c.t.section.grupo}`}
-            onPress={() => act.tab('grupo')}
-          />
-          <Button
-            key="tab-inventario"
-            plain={on !== 'inventario' || undefined}
-            dimColor={on !== 'inventario'}
-            label={`${on === 'inventario' ? '◆' : '◇'} ${c.t.section.inventario}`}
-            onPress={() => act.tab('inventario')}
-          />
+          {tab('grupo', c.t.section.grupo)}
+          {tab('inventario', c.t.section.inventario)}
           <Box flexGrow={1} />
           <Button key="split" plain dimColor label={c.t.split} onPress={() => act.joinParty(false)} />
         </Box>

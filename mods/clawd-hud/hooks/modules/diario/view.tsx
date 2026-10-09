@@ -43,7 +43,7 @@ export const groupHeadView = (c: Ctx, entries: readonly DiaryEntry[], split: () 
         <Text dimColor>{c.t.splitHint}</Text>
       </Box>
       {chip(c, 'chip', `${s.count - s.failed}/${s.count}`, s.failed > 0 ? t.bad : t.ok)}
-      <Button key={`split-${first?.group ?? ''}`} label="▾" onPress={split} />
+      <Button key={`split-${first?.group ?? ''}`} label={`${c.t.expandGroup} ▾`} onPress={split} />
     </Box>
   )
 }
