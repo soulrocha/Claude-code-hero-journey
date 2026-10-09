@@ -9,6 +9,7 @@ import { groupFor, groupStats, groupView } from '../hooks/modules/diario/diario'
 import { appendDecision, detect, isSubfolder, memoryTool, mentionsPrivate, oneLine, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
 import { diffOf, makeGuard, verdictOf, LABELS } from '../hooks/modules/guarda/guarda'
 import { parseInventory, questView } from '../hooks/modules/painel/painel'
+import { withScheme } from '../hooks/core/ui'
 
 describe('classes', () => {
   test('cada classe da tabela do handoff tem a sua atividade', async () => {
@@ -266,5 +267,15 @@ describe('grimório', () => {
     expect(appendDecision(once, '- Usar lazy load\n', 'Decisões')).toBe(once)
     const twice = appendDecision(once, '- Paginar no servidor\n', 'Decisões')
     expect(twice.indexOf('Paginar')).toBeGreaterThan(twice.indexOf('lazy'))
+  })
+})
+
+describe('esquema de cor do Svg', () => {
+  test('segue a paleta; no tema automático, o do sistema', async () => {
+    const src = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><svg x="0"></svg></svg>'
+    expect(withScheme(src, { palette: 'escuro', bg: '#2b2a27' })).toContain('viewBox="0 0 1 1"><style>:root{color-scheme:dark}</style><svg x="0">')
+    expect(withScheme(src, { palette: 'claro', bg: '#f3f1ea' })).toContain('color-scheme:light}')
+    expect(withScheme(src, { palette: 'escuro', bg: undefined })).toContain('color-scheme:light dark}')
+    expect(withScheme(src, { palette: 'escuro', bg: '#2b2a27' }).match(/<style>/g)?.length).toBe(1)
   })
 })

@@ -13,7 +13,7 @@ export const sideQuestCard = (c: Ctx, brief: string, act: SideQuestActions): Ren
   return (
     <Box key="card-sideQuest" flexDirection="column" borderStyle="round" borderColor="suggestion" paddingX={1}>
       <Box flexDirection="row" gap={2} alignItems="center">
-        {svg(c.ui, c.desktop, crab('patrulheiro', 64, c.palette, c.t.sqTitle, true), 'sq-crab')}
+        {svg(c, crab('patrulheiro', 64, c.palette, c.t.sqTitle, true), 'sq-crab')}
         <Box flexDirection="column" flexGrow={1}>
           <Text bold color="suggestion">
             ⇄ {c.t.sqTitle}

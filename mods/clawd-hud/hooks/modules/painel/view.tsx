@@ -3,11 +3,12 @@
 
 import type { RenderElement } from 'claude-code'
 
-import type { Campaign, Cls, GuardMode, Inventory, Member, ModuleId, Prefs, Profile, Quest, Section, Skin } from '../../../types'
-import { CLASSES, classColor, crab, doneQuestsArt, itemIcon, linkIcon, objectiveArt, rarityColor, resourceBar } from '../../core/art'
+import type { Campaign, Cls, GuardMode, Inventory, Member, ModuleId, Prefs, Profile, Quest, Section, Skin, Working } from '../../../types'
+import { CLASSES, classColor, crab, doneQuestsArt, itemIcon, linkIcon, meter, questBox, rarityColor, resourceBar, TONE } from '../../core/art'
 import { isOn, isShown, MODULES, SECTIONS } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
 import { GITHUB_URL, LINKEDIN_URL, pxOf, svg, title, VERSION } from '../../core/ui'
+import { currentChapter, titleOf } from '../campanha/campanha'
 import { questView } from './painel'
 
 export type PaneData = {
@@ -17,7 +18,10 @@ export type PaneData = {
   party: readonly Member[]
   inventory: Inventory
   partyTab: 'grupo' | 'inventario'
-  usage: { context?: number; mana?: number; manaAt: string; vigor?: number; vigorAt: string }
+  usage: { context?: number; mana?: number; manaAt: string; manaIn: string; vigor?: number; vigorAt: string; vigorIn: string }
+  working: Working | null
+  /** Inscrições do grimório esperando o Selar. */
+  pendingInscriptions: number
 }
 
 export type PaneActions = {
@@ -38,7 +42,7 @@ export const mainView = (c: Ctx, d: PaneData, act: PaneActions, report: RenderEl
   const show = (s: Section) => isShown(d.prefs, s)
   return (
     <Box flexDirection="column" gap={1}>
-      {show('objetivo') && objectiveSection(c, d.campaign, act)}
+      {show('objetivo') && objectiveSection(c, d.campaign, d.quests, act)}
       {show('quests') && questSection(c, d.quests)}
       {partySections(c, d, act)}
       <Box key="spacer" flexGrow={1} />
@@ -48,18 +52,41 @@ export const mainView = (c: Ctx, d: PaneData, act: PaneActions, report: RenderEl
   )
 }
 
-const objectiveSection = (c: Ctx, campaign: Campaign | null, act: PaneActions) => {
+/** Com mais de um capítulo, o objetivo é o pedido do capítulo atual e o primeiro vira "começou como". */
+const objectiveOf = (campaign: Campaign | null) => {
+  if (campaign === null) return { text: '', origin: '', n: 0 }
+  const n = campaign.chapters.length
+  const chapter = currentChapter(campaign)
+  if (n > 1 && chapter !== undefined) return { text: titleOf(chapter.prompt), origin: campaign.title, n }
+  const text = campaign.objective.length > 160 ? `${campaign.objective.slice(0, 159)}…` : campaign.objective
+  return { text, origin: '', n }
+}
+
+const objectiveSection = (c: Ctx, campaign: Campaign | null, quests: readonly Quest[], act: PaneActions) => {
   const { Box, Button, Text } = c.ui
-  const objective = campaign?.objective ?? ''
+  const o = objectiveOf(campaign)
+  const done = quests.filter(q => q.status === 'completed').length
+  const progress = `${done}/${quests.length}`
   return (
     <Box key="objetivo" flexDirection="column" alignItems={c.skin === 'epico' ? 'center' : 'flex-start'}>
       {title(c, c.t.section.objetivo, campaign?.achieved === true ? '?' : undefined)}
-      {objective === '' ? (
+      {o.text === '' ? (
         <Text dimColor>{c.t.noObjective}</Text>
-      ) : c.desktop ? (
-        svg(c.ui, true, objectiveArt(objective, c.palette, c.skin, pxOf(c)), 'objective')
       ) : (
-        <Text wrap="wrap">{objective}</Text>
+        <Text key="objective" bold wrap="wrap">
+          {o.text}
+        </Text>
+      )}
+      {campaign !== null && (
+        <Text key="chapter-line" dimColor wrap="truncate-end">
+          {c.t.chapterLine(o.n, o.origin)}
+        </Text>
+      )}
+      {quests.length > 0 && (
+        <Box key="objective-progress" flexDirection="row" gap={1} alignItems="center">
+          {svg(c, meter(done / quests.length, TONE[c.palette].gild, c.palette, progress, pxOf(c) - 70), 'objective-meter')}
+          <Text dimColor>{progress}</Text>
+        </Box>
       )}
       {campaign !== null &&
         (campaign.achieved ? (
@@ -74,25 +101,52 @@ const objectiveSection = (c: Ctx, campaign: Campaign | null, act: PaneActions) =
 const questSection = (c: Ctx, quests: readonly Quest[]) => {
   const { Box, Text } = c.ui
   const q = questView(quests)
+  const done = q.done.length
   return (
-    <Box key="quests" flexDirection="column">
-      {title(c, c.t.section.quests, q.current === undefined && q.done.length > 0 ? '?' : '!')}
+    <Box key="quests" flexDirection="column" gap={c.desktop ? 1 : 0}>
+      <Box flexDirection="row" alignItems="center">
+        <Box flexGrow={1} alignItems={c.skin === 'epico' ? 'center' : 'flex-start'}>
+          {title(c, c.t.section.quests, q.current === undefined && done > 0 ? '?' : '!')}
+        </Box>
+        {quests.length > 0 && <Text dimColor>{`${done}/${quests.length}`}</Text>}
+      </Box>
       {quests.length === 0 && <Text dimColor>{c.t.noQuests}</Text>}
-      {q.done.length > 0 &&
+      {done > 0 &&
         (c.desktop ? (
-          svg(c.ui, true, doneQuestsArt(q.done.map(x => x.title), c.palette), 'done-quests')
+          <Box key="done-row" flexDirection="row" gap={1} alignItems="center">
+            {svg(c, doneQuestsArt(q.done.map(x => x.title), c.palette), 'done-quests')}
+            <Text dimColor>{c.t.questsDone(done)}</Text>
+          </Box>
         ) : (
-          <Text color="success">{'✓'.repeat(Math.min(12, q.done.length))}</Text>
+          <Text color="success">{'✓'.repeat(Math.min(12, done))}</Text>
         ))}
       {q.current !== undefined && (
-        <Text bold color="warning" wrap="wrap">
-          ! {q.current.title}
-        </Text>
+        <Box
+          key="quest-current"
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          paddingX={c.desktop ? 1 : 0}
+          paddingY={c.desktop ? 1 : 0}
+          backgroundColor={c.desktop ? TONE[c.palette].card : undefined}
+        >
+          <Text color="warning">!</Text>
+          {svg(c, questBox(true, c.palette, q.current.title), 'quest-box-current')}
+          <Box flexDirection="column" flexShrink={1}>
+            <Text bold color="warning" wrap="wrap">
+              {q.current.title}
+            </Text>
+            <Text dimColor>{c.t.inProgress}</Text>
+          </Box>
+        </Box>
       )}
       {q.next.map(n => (
-        <Text key={`next-${n.id}`} dimColor wrap="truncate-end">
-          · {n.title}
-        </Text>
+        <Box key={`next-${n.id}`} flexDirection="row" gap={1} alignItems="center" paddingLeft={c.desktop ? 3 : 0}>
+          {c.desktop ? svg(c, questBox(false, c.palette, n.title), `quest-box-${n.id}`) : <Text dimColor>·</Text>}
+          <Text dimColor wrap="truncate-end">
+            {n.title}
+          </Text>
+        </Box>
       ))}
       {q.mist > 0 && <Text dimColor>{c.t.questsMist(q.mist)}</Text>}
     </Box>
@@ -108,24 +162,25 @@ const partySections = (c: Ctx, d: PaneData, act: PaneActions) => {
     const on = d.partyTab
     return (
       <Box key="party" flexDirection="column">
-        <Box flexDirection="row" gap={1} justifyContent={c.skin === 'epico' ? 'center' : 'flex-start'}>
+        <Box flexDirection="row" gap={1} alignItems="center" justifyContent={c.skin === 'epico' ? 'center' : 'flex-start'}>
           <Button
             key="tab-grupo"
-            plain
+            plain={on !== 'grupo' || undefined}
             dimColor={on !== 'grupo'}
             label={`${on === 'grupo' ? '◆' : '◇'} ${c.t.section.grupo}`}
             onPress={() => act.tab('grupo')}
           />
           <Button
             key="tab-inventario"
-            plain
+            plain={on !== 'inventario' || undefined}
             dimColor={on !== 'inventario'}
             label={`${on === 'inventario' ? '◆' : '◇'} ${c.t.section.inventario}`}
             onPress={() => act.tab('inventario')}
           />
-          <Button key="split" plain label={c.t.split} onPress={() => act.joinParty(false)} />
+          <Box flexGrow={1} />
+          <Button key="split" plain dimColor label={c.t.split} onPress={() => act.joinParty(false)} />
         </Box>
-        {on === 'grupo' ? partyBody(c, d.party) : inventoryBody(c, d.inventory)}
+        {on === 'grupo' ? partyBody(c, d.party, d.working, d.campaign?.achieved === true) : inventoryBody(c, d.inventory)}
       </Box>
     )
   }
@@ -134,7 +189,7 @@ const partySections = (c: Ctx, d: PaneData, act: PaneActions) => {
       {showParty && (
         <Box flexDirection="column">
           {title(c, c.t.section.grupo)}
-          {partyBody(c, d.party)}
+          {partyBody(c, d.party, d.working, d.campaign?.achieved === true)}
         </Box>
       )}
       {showInv && (
@@ -148,38 +203,83 @@ const partySections = (c: Ctx, d: PaneData, act: PaneActions) => {
   )
 }
 
-const partyBody = (c: Ctx, party: readonly Member[]) => {
+/** O Clawd numa moldura na cor da classe, como os retratos do grupo na demo. */
+const portrait = (c: Ctx, cls: Cls, size: number, tip: string, key: string, withProp: boolean) => {
+  const { Box } = c.ui
+  return (
+    <Box key={key} borderStyle="round" borderColor={classColor(cls, c.palette)} backgroundColor={TONE[c.palette].card}>
+      {svg(c, crab(cls, size, c.palette, tip, withProp), `${key}-art`)}
+    </Box>
+  )
+}
+
+/** Um cartão do grupo: retrato, nome, estado, o que faz e a barra (sem progresso real, ela só respira). */
+const memberCard = (c: Ctx, key: string, cls: Cls, name: string, status: string, what: string) => {
+  const { Box, Text } = c.ui
+  const color = classColor(cls, c.palette)
+  if (!c.desktop) {
+    return (
+      <Box key={key} flexDirection="row" gap={1}>
+        <Text bold color={color}>
+          {name}
+        </Text>
+        <Text dimColor wrap="truncate-end">
+          · {what}
+        </Text>
+      </Box>
+    )
+  }
+  const breathe = '<animate attributeName="opacity" values=".9;.35;.9" dur="2.4s" repeatCount="indefinite"/>'
+  return (
+    <Box key={key} flexDirection="row" gap={1} alignItems="center">
+      {portrait(c, cls, 64, `${name} · ${what}`, `${key}-portrait`, true)}
+      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+        <Box flexDirection="row">
+          <Text bold color={color}>
+            {name}
+          </Text>
+          <Box flexGrow={1} />
+          <Text dimColor>{status}</Text>
+        </Box>
+        <Text dimColor wrap="truncate-end">
+          {what}
+        </Text>
+        {svg(c, meter(1, color, c.palette, what, pxOf(c) - 110, breathe), `${key}-bar`)}
+      </Box>
+    </Box>
+  )
+}
+
+const memberName = (c: Ctx, m: Member) => (m.type === '' || /general/i.test(m.type) ? c.t.className[m.cls] : m.type)
+
+const partyBody = (c: Ctx, party: readonly Member[], working: Working | null, achieved: boolean) => {
   const { Box, Text } = c.ui
   const active = party.filter(m => m.status === 'run')
   const done = party.filter(m => m.status !== 'run')
-  if (party.length === 0) return <Text dimColor>{c.t.noParty}</Text>
+  const main =
+    working !== null
+      ? memberCard(c, 'main', working.cls, c.t.className.druida, c.t.inAction, c.t.mainSession(c.t.className[working.cls]))
+      : achieved
+        ? memberCard(c, 'main', 'druida', c.t.className.druida, c.t.missionDone, c.t.mainSession(c.t.className.druida))
+        : null
+  if (party.length === 0 && main === null) return <Text dimColor>{c.t.noParty}</Text>
   return (
-    <Box flexDirection="column">
-      {active.map(m => (
-        <Box key={`m-${m.id}`} flexDirection="row" gap={1} alignItems="center">
-          {svg(c.ui, c.desktop, crab(m.cls, 38, c.palette, `${c.t.className[m.cls]} · ${m.description}`, true), `crab-${m.id}`)}
-          <Box flexDirection="column">
-            <Text bold color={classColor(m.cls, c.palette)}>
-              {c.t.className[m.cls]}
-            </Text>
-            <Text dimColor wrap="truncate-end">
-              {m.description}
-            </Text>
-          </Box>
-        </Box>
-      ))}
+    <Box flexDirection="column" gap={c.desktop ? 1 : 0}>
+      {main}
+      {active.map(m => memberCard(c, `m-${m.id}`, m.cls, memberName(c, m), c.t.inAction, `${c.t.className[m.cls].toLowerCase()} · ${m.description}`))}
       {done.length > 0 && (
-        <Box flexDirection="row" gap={1} flexWrap="wrap">
-          <Text dimColor>{c.t.partyDone}:</Text>
+        <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+          {!c.desktop && <Text dimColor>{c.t.partyDone}:</Text>}
           {done.slice(-8).map(m =>
             c.desktop ? (
-              svg(c.ui, true, crab(m.cls, 22, c.palette, `${m.status === 'err' ? '✗' : '✓'} ${c.t.className[m.cls]} · ${m.description}`), `done-${m.id}`)
+              portrait(c, m.cls, 26, `${m.status === 'err' ? '✗' : '✓'} ${memberName(c, m)} · ${m.description}`, `done-${m.id}`, false)
             ) : (
               <Text key={`done-${m.id}`} color={m.status === 'err' ? 'error' : 'success'}>
                 {m.status === 'err' ? '✗' : '✓'} {c.t.className[m.cls]}
               </Text>
             ),
           )}
+          {c.desktop && <Text dimColor>{c.t.doneHint}</Text>}
         </Box>
       )}
     </Box>
@@ -207,7 +307,7 @@ const inventoryBody = (c: Ctx, inv: Inventory) => {
           item.added === undefined ? '' : ` +${item.added}${item.removed !== undefined && item.removed > 0 ? ` −${item.removed}` : ''}`
         return (
           <Box key={`i-${item.path}`} flexDirection="row" gap={1}>
-            {svg(c.ui, c.desktop, itemIcon(item.path, item.rarity, c.palette, tip), `icon-${item.path}`)}
+            {svg(c, itemIcon(item.path, item.rarity, c.palette, tip), `icon-${item.path}`)}
             <Text color={rarityColor(item.rarity, c.palette)} wrap="truncate-start">
               {item.path}
             </Text>
@@ -227,28 +327,29 @@ const footer = (c: Ctx, d: PaneData, act: PaneActions) => {
   const mana = u.mana === undefined ? '—' : `${Math.round(u.mana)}%`
   const vigor = u.vigor === undefined ? '—' : `${Math.round(u.vigor)}%`
   const bar = (kind: 'mochila' | 'mana' | 'vigor', value: number | undefined, tip: string) =>
-    svg(c.ui, c.desktop, resourceBar(kind, value === undefined ? undefined : value / 100, c.palette, tip), `bar-${kind}`)
+    svg(c, resourceBar(kind, value === undefined ? undefined : value / 100, c.palette, tip), `bar-${kind}`)
   const on = (id: ModuleId) => isOn(d.prefs, id)
+  const grim = d.pendingInscriptions > 0 ? `${c.t.grimoire} · ${d.pendingInscriptions}` : c.t.grimoire
   return (
-    <Box key="footer" flexDirection="column" borderStyle="round" borderColor="subtle" paddingX={1}>
+    <Box key="footer" flexDirection="column" paddingX={1}>
       <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-        {bar('mochila', u.context, c.t.mochilaTip(mochila))}
         <Button key="mochila" plain label={`${c.t.footer.mochila} ${mochila}`} onPress={act.compact} />
+        {bar('mochila', u.context, c.t.mochilaTip(mochila))}
+        <Box flexGrow={1} />
+        <Text dimColor>{c.t.footer.mana}</Text>
         {bar('mana', u.mana, c.t.manaTip(mana, u.manaAt))}
-        <Text>
-          {c.t.footer.mana} {mana}
-          {u.manaAt === '' ? '' : ` · ${u.manaAt}`}
-        </Text>
-        {bar('vigor', u.vigor, c.t.vigorTip(vigor, u.vigorAt))}
-        <Text>
-          {c.t.footer.vigor} {vigor}
-        </Text>
+        <Text>{mana}</Text>
+        {u.manaIn !== '' && <Text dimColor>↻{u.manaIn}</Text>}
       </Box>
-      <Box flexDirection="row" gap={1}>
-        {on('grimorio') && <Button key="grimorio" plain label={c.t.grimoire} onPress={act.grimoire} />}
+      <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+        <Text dimColor>{c.t.footer.vigor}</Text>
+        {bar('vigor', u.vigor, c.t.vigorTip(vigor, u.vigorAt))}
+        <Text>{vigor}</Text>
+        {u.vigorIn !== '' && <Text dimColor>↻{u.vigorIn}</Text>}
+        <Box flexGrow={1} />
+        {on('grimorio') && <Button key="grimorio" plain label={grim} onPress={act.grimoire} />}
         {on('sideQuest') && <Button key="side-quest" plain label={c.t.sideQuest} onPress={act.sideQuest} />}
         {on('projetos') && <Button key="projects" plain label={c.t.projects} onPress={act.projects} />}
-        <Box flexGrow={1} />
         <Button key="config" plain label={c.t.config} onPress={act.config} />
         <Button key="about" plain label={c.t.about} onPress={act.about} />
       </Box>
@@ -363,7 +464,7 @@ export const aboutView = (c: Ctx, back: () => void): RenderElement => {
       {title(c, c.t.aboutTitle)}
       {c.desktop && (
         <Box flexDirection="row" gap={1} justifyContent="center" flexWrap="wrap">
-          {CLASSES.map((cls: Cls) => svg(c.ui, true, crab(cls, 30, c.palette, c.t.className[cls]), `about-${cls}`))}
+          {CLASSES.map((cls: Cls) => svg(c, crab(cls, 30, c.palette, c.t.className[cls]), `about-${cls}`))}
         </Box>
       )}
       {c.t.aboutBody.map((p, i) => (
@@ -373,7 +474,7 @@ export const aboutView = (c: Ctx, back: () => void): RenderElement => {
       ))}
       {links.map(l => (
         <Box key={`link-${l.kind}`} flexDirection="row" gap={1} alignItems="center">
-          {svg(c.ui, c.desktop, linkIcon(l.kind, c.palette, l.label), `icon-${l.kind}`)}
+          {svg(c, linkIcon(l.kind, c.palette, l.label), `icon-${l.kind}`)}
           <Link href={l.href}>{l.label}</Link>
         </Box>
       ))}

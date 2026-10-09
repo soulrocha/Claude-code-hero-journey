@@ -15,7 +15,7 @@ export const guardLineView = (c: Ctx, files: readonly GuardFile[]): RenderElemen
     const names = files.map(f => `${f.name} +${f.added}${f.removed > 0 ? ` −${f.removed}` : ''}`).join(' · ')
     return <Text color="warning">🔒 {names}</Text>
   }
-  return <Box>{svg(c.ui, true, guardLine(files, c.palette, name => c.t.guardNotice(name)), 'guard-line')}</Box>
+  return <Box>{svg(c, guardLine(files, c.palette, name => c.t.guardNotice(name)), 'guard-line')}</Box>
 }
 
 export const bossView = (c: Ctx, files: readonly GuardFile[]): RenderElement => {
@@ -23,7 +23,7 @@ export const bossView = (c: Ctx, files: readonly GuardFile[]): RenderElement => 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1} gap={1}>
       <Box flexDirection="row" gap={2} alignItems="center">
-        {svg(c.ui, c.desktop, mimic(c.palette, c.t.bossTitle), 'mimic')}
+        {svg(c, mimic(c.palette, c.t.bossTitle), 'mimic')}
         <Box flexDirection="column">
           <Text bold color="warning">
             ⚔ {c.t.bossTitle}
@@ -35,7 +35,7 @@ export const bossView = (c: Ctx, files: readonly GuardFile[]): RenderElement => 
         {files.map(f => (
           <Box key={`boss-${f.path}`} flexDirection="column" flexGrow={1}>
             <Box flexDirection="row" gap={1}>
-              {svg(c.ui, c.desktop, itemIcon(f.name, 'lendario', c.palette, f.name), `boss-icon-${f.path}`)}
+              {svg(c, itemIcon(f.name, 'lendario', c.palette, f.name), `boss-icon-${f.path}`)}
               <Text bold>{f.name}</Text>
               <Text color="success">+{f.added}</Text>
               {f.removed > 0 && <Text color="error">−{f.removed}</Text>}

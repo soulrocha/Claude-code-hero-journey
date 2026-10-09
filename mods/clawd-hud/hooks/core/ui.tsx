@@ -27,11 +27,20 @@ export type Ctx = {
   bg?: string
 }
 
+/**
+ * O frame isolado do `Svg` interativo pinta o fundo branco quando o esquema de
+ * cor dele difere do app. Com o tema automático, segue o do sistema, como o app.
+ */
+export const withScheme = (source: string, c: Pick<Ctx, 'palette' | 'bg'>) => {
+  const scheme = c.bg === undefined ? 'light dark' : c.palette === 'claro' ? 'light' : 'dark'
+  return source.replace(/^<svg[^>]*>/, tag => `${tag}<style>:root{color-scheme:${scheme}}</style>`)
+}
+
 /** Svg só no desktop; nas outras superfícies, nada (quem chama põe o texto). */
-export const svg = (ui: Ui, desktop: boolean, a: Art, key?: string) => {
-  if (!desktop) return null
-  const { Svg } = ui as DesktopUi
-  return <Svg key={key ?? a.alt} source={a.source} width={a.width} height={a.height} alt={a.alt} isInteractive />
+export const svg = (c: Ctx, a: Art, key?: string) => {
+  if (!c.desktop) return null
+  const { Svg } = c.ui as DesktopUi
+  return <Svg key={key ?? a.alt} source={withScheme(a.source, c)} width={a.width} height={a.height} alt={a.alt} isInteractive />
 }
 
 /** A largura útil em px, a partir das colunas do painel. */
@@ -40,7 +49,7 @@ export const pxOf = (c: Ctx) => Math.min(c.width * 7.6, 420)
 export const title = (c: Ctx, text: string, mark?: '!' | '?') => {
   const { Text } = c.ui
   return c.desktop ? (
-    svg(c.ui, true, sectionTitle(text, c.palette, c.skin, pxOf(c), mark), `title-${text}`)
+    svg(c, sectionTitle(text, c.palette, c.skin, pxOf(c), mark), `title-${text}`)
   ) : (
     <Text bold color="claude">
       {c.skin === 'epico' ? `◆ ${mark === undefined ? '' : `${mark} `}${text} ◆` : text.toUpperCase()}

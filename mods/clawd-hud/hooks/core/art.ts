@@ -43,9 +43,10 @@ const COLORS: Record<Palette, Record<Cls, string>> = {
 }
 
 /** Tons da pele e da raridade, nas duas paletas do protótipo. */
-export const TONE: Record<Palette, Record<'text' | 'muted' | 'gild' | 'gildDim' | 'ok' | 'bad' | 'warn' | 'pane', string>> = {
-  escuro: { text: '#ece9df', muted: '#b3b0a6', gild: '#d9b26a', gildDim: '#8a7346', ok: '#8fc46a', bad: '#ee7a8e', warn: '#e6b450', pane: '#2b2a27' },
-  claro: { text: '#1f1e1d', muted: '#57554f', gild: '#7a5310', gildDim: '#c9b48a', ok: '#3d7a1a', bad: '#b23450', warn: '#8a5e00', pane: '#f3f1ea' },
+// `card` é translúcido (hex de 8 dígitos): destaca a linha sobre qualquer fundo do app.
+export const TONE: Record<Palette, Record<'text' | 'muted' | 'gild' | 'gildDim' | 'ok' | 'bad' | 'warn' | 'pane' | 'card', string>> = {
+  escuro: { text: '#ece9df', muted: '#b3b0a6', gild: '#d9b26a', gildDim: '#8a7346', ok: '#8fc46a', bad: '#ee7a8e', warn: '#e6b450', pane: '#2b2a27', card: '#d9b26a17' },
+  claro: { text: '#1f1e1d', muted: '#57554f', gild: '#7a5310', gildDim: '#c9b48a', ok: '#3d7a1a', bad: '#b23450', warn: '#8a5e00', pane: '#f3f1ea', card: '#7a531014' },
 }
 
 const RARITY: Record<Palette, Record<Rarity, string>> = {
@@ -181,7 +182,9 @@ export const diaryMark = (cls: Cls, palette: Palette, tip: string, state: 'run' 
     `<title>${esc(tip)}</title><style>${KEYFRAMES}</style>` +
     `<svg x="0" y="2" width="40" height="40" viewBox="28 12 76 74"><g class="bobs">${body()}${hat(cls, palette)}</g></svg>` +
     `<line x1="49" y1="0" x2="49" y2="44" stroke="${c}" stroke-opacity=".55" stroke-width="2"/>` +
-    `<circle cx="49" cy="22" r="4.5" fill="${dot}">${pulse}</circle></svg>`
+    (state === 'run'
+      ? `<circle cx="49" cy="22" r="4.5" fill="${dot}">${pulse}</circle></svg>`
+      : `<circle cx="49" cy="22" r="4.5" fill="${TONE[palette].pane}" stroke="${dot}" stroke-width="2"/></svg>`)
   return { source, width: 56, height: 44, alt: tip }
 }
 
@@ -208,68 +211,44 @@ export const sectionTitle = (
   }
   const label = (mark === undefined ? '' : `${mark} `) + title.toUpperCase()
   const half = w / 2
-  const textW = label.length * 7.4
+  const textW = label.length * 9.2
   const left = Math.max(8, half - textW / 2 - 12)
   const right = Math.min(w - 8, half + textW / 2 + 12)
   const source =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 22" width="${w}" height="22">` +
     `<line x1="4" y1="11" x2="${left - 8}" y2="11" stroke="${t.gildDim}"/>` +
     `<path d="M${left - 8} 11 l4 -4 l4 4 l-4 4 Z" fill="${t.gild}"/>` +
-    `<text x="${half}" y="15" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" letter-spacing=".08em" fill="${t.gild}">${esc(label)}</text>` +
+    `<text x="${half}" y="15" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10.5" font-weight="700" letter-spacing=".28em" fill="${t.gild}">${esc(label)}</text>` +
     `<path d="M${right} 11 l4 -4 l4 4 l-4 4 Z" fill="${t.gild}"/>` +
     `<line x1="${right + 8}" y1="11" x2="${w - 4}" y2="11" stroke="${t.gildDim}"/></svg>`
   return { source, width: w, height: 22, alt: label }
 }
 
-/** O objetivo da campanha, com quebra de linha e o texto completo no tooltip. */
-export const objectiveArt = (text: string, palette: Palette, skin: 'epico' | 'sobrio', width: number): Art => {
-  const t = TONE[palette]
-  const w = Math.max(160, Math.round(width))
-  const perLine = Math.max(16, Math.floor(w / 7.2))
-  const words = text.split(/\s+/)
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    if ((line + ' ' + word).trim().length > perLine) {
-      if (line !== '') lines.push(line)
-      line = word
-    } else line = (line + ' ' + word).trim()
-    if (lines.length === 3) break
-  }
-  if (lines.length < 3 && line !== '') lines.push(line)
-  const shown = lines.slice(0, 3)
-  if (lines.length === 3 && words.join(' ').length > shown.join(' ').length) shown[2] = `${shown[2]}…`
-  const centered = skin === 'epico'
-  const x = centered ? w / 2 : 0
-  const anchor = centered ? 'middle' : 'start'
-  const h = 8 + shown.length * 17
-  const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><title>${esc(text)}</title>` +
-    shown
-      .map(
-        (l, i) =>
-          `<text x="${x}" y="${17 + i * 17}" text-anchor="${anchor}" font-family="${centered ? 'Georgia,serif' : 'system-ui,sans-serif'}" font-size="13.5" fill="${t.text}">${esc(l)}</text>`,
-      )
-      .join('') +
-    '</svg>'
-  return { source, width: w, height: h, alt: text }
-}
-
-/** Fileira de quests concluídas: ícones acesos, cada um com o nome no tooltip. */
+/** Fileira de quests concluídas: quadrados como os da demo, cada um com o nome no tooltip. */
 export const doneQuestsArt = (titles: readonly string[], palette: Palette): Art => {
   const t = TONE[palette]
-  const shown = titles.slice(-12)
-  const w = Math.max(20, shown.length * 20)
+  const shown = titles.slice(-8)
+  const w = Math.max(26, shown.length * 26)
   const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 20" width="${w}" height="20">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 24" width="${w}" height="24">` +
     shown
       .map(
         (title, i) =>
-          `<g transform="translate(${i * 20 + 2} 2)"><title>✓ ${esc(title)}</title><rect width="16" height="16" rx="3" fill="${t.gild}" fill-opacity=".18" stroke="${t.gild}"/><path d="M4 8.5 l3 3 l5 -6" stroke="${t.ok}" stroke-width="2" fill="none"/></g>`,
+          `<g transform="translate(${i * 26 + 1} 1)"><title>✓ ${esc(title)}</title><rect x=".5" y=".5" width="21" height="21" rx="4" fill="${t.muted}" fill-opacity=".1" stroke="${t.muted}" stroke-opacity=".55"/></g>`,
       )
       .join('') +
     '</svg>'
-  return { source, width: w, height: 20, alt: shown.map(s => `✓ ${s}`).join(', ') }
+  return { source, width: w, height: 24, alt: shown.map(s => `✓ ${s}`).join(', ') }
+}
+
+/** O quadrado de uma quest aberta: dourado na atual, apagado nas próximas. */
+export const questBox = (current: boolean, palette: Palette, tip: string): Art => {
+  const t = TONE[palette]
+  const stroke = current ? t.gild : t.muted
+  const source =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><title>${esc(tip)}</title>` +
+    `<rect x="1.5" y="1.5" width="21" height="21" rx="4" fill="${t.muted}" fill-opacity=".08" stroke="${stroke}" stroke-opacity="${current ? 1 : 0.55}" stroke-width="${current ? 1.6 : 1}"/></svg>`
+  return { source, width: 24, height: 24, alt: tip }
 }
 
 const FILE_ICON = {
@@ -308,6 +287,18 @@ export const linkIcon = (kind: 'linkedin' | 'github', palette: Palette, tip: str
   }
 }
 
+/** Barra fina, como a da demo: trilho escuro e o preenchido na cor dada. */
+export const meter = (fraction: number | undefined, color: string, palette: Palette, tip: string, width = 64, extra = ''): Art => {
+  const t = TONE[palette]
+  const w = Math.max(24, Math.round(width))
+  const f = fraction === undefined ? 0 : Math.max(0, Math.min(1, fraction))
+  const source =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 8" width="${w}" height="8"><title>${esc(tip)}</title>` +
+    `<rect x="0" y="1" width="${w}" height="6" rx="3" fill="${t.muted}" fill-opacity=".22"/>` +
+    `<rect x="0" y="1" width="${Math.round(w * f)}" height="6" rx="3" fill="${color}">${extra}</rect></svg>`
+  return { source, width: w, height: 8, alt: tip }
+}
+
 /** Barra de recurso do rodapé: preenchida pelo que resta, com o rótulo no tooltip. */
 export const resourceBar = (
   kind: 'mochila' | 'mana' | 'vigor',
@@ -315,19 +306,13 @@ export const resourceBar = (
   palette: Palette,
   tip: string,
 ): Art => {
-  const t = TONE[palette]
-  const color = kind === 'mochila' ? '#d8a65a' : kind === 'mana' ? '#6cb6ec' : '#8fc46a'
-  const f = fraction === undefined ? 0 : Math.max(0, Math.min(1, fraction))
+  const color = kind === 'mochila' ? '#b49cf0' : kind === 'mana' ? '#6cb6ec' : '#8fc46a'
   // A mochila "respira" quando está cheia (o que se usa, não o que resta).
   const breathe =
-    kind === 'mochila' && f >= 0.8
+    kind === 'mochila' && (fraction ?? 0) >= 0.8
       ? '<animate attributeName="opacity" values="1;.55;1" dur="2.4s" repeatCount="indefinite"/>'
       : ''
-  const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 10" width="64" height="10"><title>${esc(tip)}</title>` +
-    `<rect x=".5" y=".5" width="63" height="9" rx="4.5" fill="none" stroke="${t.muted}" stroke-opacity=".6"/>` +
-    `<rect x="2" y="2" width="${Math.round(60 * f)}" height="6" rx="3" fill="${color}">${breathe}</rect></svg>`
-  return { source, width: 64, height: 10, alt: tip }
+  return meter(fraction, color, palette, tip, 40, breathe)
 }
 
 /** O Guardião do Cofre: um baú mímico em pixel art, com a tampa que range e os olhos que piscam. */

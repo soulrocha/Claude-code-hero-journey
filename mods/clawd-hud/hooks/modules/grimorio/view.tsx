@@ -67,8 +67,8 @@ export const grimCard = (c: Ctx, list: readonly Inscription[], paths: Dests, act
   return (
     <Box key="card-grimorio" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
       <Box flexDirection="row" gap={2} alignItems="center">
-        {svg(c.ui, c.desktop, book(c.palette, c.t.grimTitle), 'book')}
-        {svg(c.ui, c.desktop, crab('mago', 64, c.palette, c.t.className.mago, true), 'grim-mago')}
+        {svg(c, book(c.palette, c.t.grimTitle), 'book')}
+        {svg(c, crab('mago', 64, c.palette, c.t.className.mago, true), 'grim-mago')}
         <Box flexDirection="column">
           <Text bold color="claude">
             📖 {c.t.grimTitle}
