@@ -4,7 +4,14 @@ Atualizado em 2026-10-09. Feito para outra sessão do Claude Code continuar daqu
 
 ## Estado em uma linha
 
-As correções visuais estão no código e passam no validador e nos testes do motor (89/89). O QA adversarial apontou 3 achados importantes, todos corrigidos no segundo commit. A árvore real que o mod desenha foi renderizada fora do app e bate com a estrutura da demo. **Ainda falta ver no app desktop.**
+As correções visuais estão no código e passam no validador e nos testes do motor (89/89). O fundo branco sumiu no app (confirmado pelo dono). O QA adversarial apontou 3 achados importantes, todos corrigidos no segundo commit. A árvore real que o mod desenha foi renderizada fora do app e bate com a estrutura da demo. **O resultado no app ficou abaixo da demo: ver "Retorno do dono".**
+
+## Retorno do dono depois de testar no app (2026-10-09)
+
+- **Confirmado no app:** o fundo branco dos `Svg` sumiu.
+- **Mesmo assim, o resultado ficou bem abaixo da demo.** Algumas coisas funcionaram e ficaram legais, mas a expectativa estava mal calibrada. A demo foi feita num protótipo HTML com CSS livre, e o mod só pode usar `Box`, `Text`, `Button` e `Svg`. O print do app vem do outro PC.
+- **Decisão:** reajustar a ideia antes de seguir polindo. Primeiro passo da próxima sessão: comparar o print real com a demo, item por item, e separar o que a API de mods consegue, o que só se aproxima e o que não dá. Depois, redesenhar a demo a partir disso, para que ela mostre só o que o app consegue entregar.
+- **Lição:** protótipo de UI para mod tem de ser feito com os mesmos elementos que o motor desenha. Um caminho é a técnica do renderizador descrita em "Renderização fora do app". Um protótipo em HTML livre não serve.
 
 ## O problema
 
@@ -63,7 +70,7 @@ Instalada, a HUD carregava (painel, faixa e classe certa), mas ficava "completam
 
 | Achado | Correção |
 |---|---|
-| A partir do 2º capítulo, uma resposta curta ("sim") virava o objetivo | `objectiveOf` só troca o objetivo por um pedido de 5 palavras ou mais; teste em `model.test.ts` |
+| A partir do 2º capítulo, uma resposta curta ("sim") virava o objetivo. A regra das 5 palavras também falhou na reauditoria ("Ok. Pode seguir…" virava "Ok."). | O objetivo é **sempre o primeiro pedido, inteiro**, e a linha mostra só "cap. N". O "começou como" da demo saiu. Teste em `model.test.ts`. |
 | Objetivo cortado em 160 caracteres, sem tooltip | volta a aparecer inteiro (a campanha já limita a 280); teste em `model.test.ts` |
 | Com 40 colunas, o contador "10/12" passava da largura | `title(..., room)` reserva 48 px ao lado do título das quests |
 | (menor) Aba ativa sem moldura no desktop, porque o Button é nativo com ou sem `plain` | a moldura agora vem de um `Box` com borda |

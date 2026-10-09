@@ -285,14 +285,13 @@ describe('objetivo do painel', () => {
   const camp = (prompts: string[]) =>
     prompts.slice(1).reduce((c, p, i) => onPrompt(c, 'c', p, i + 1), newCampaign('c', prompts[0] ?? '', 0))
 
-  test('resposta curta não vira objetivo; pedido novo de verdade vira, com o primeiro em "começou como"', async () => {
+  test('o objetivo é sempre o primeiro pedido, por mais capítulos que venham', async () => {
     const first = 'Implementar a paginação no servidor da lista de candidatos'
-    expect(objectiveOf(camp([first, 'sim'])).text).toBe(first)
-    expect(objectiveOf(camp([first, 'sim'])).origin).toBe('')
-    const o = objectiveOf(camp([first, 'Agora publique a lista em homologação com o filtro', 'ok']))
-    expect(o.text).toBe('Agora publique a lista em homologação com o filtro')
-    expect(o.origin).toBe(first)
-    expect(o.n).toBe(3)
+    for (const next of ['sim', 'Ok. Pode seguir com o resto do plano.', 'pode continuar de onde parou']) {
+      const o = objectiveOf(camp([first, next]))
+      expect(o.text).toBe(first)
+      expect(o.n).toBe(2)
+    }
   })
 
   test('objetivo longo aparece inteiro (até os 280 da campanha)', async () => {
