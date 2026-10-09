@@ -85,7 +85,7 @@ export const projectsView = (
     <Box flexDirection="column" gap={1}>
       <Button key="back" plain label={c.t.back} onPress={act.back} />
       <Box flexDirection="row" gap={2} alignItems="center">
-        {svg(c.ui, c.desktop, crab('patrulheiro', 56, c.palette, c.t.projTitle, true), 'proj-crab')}
+        {svg(c, crab('patrulheiro', 56, c.palette, c.t.projTitle, true), 'proj-crab')}
         {title(c, c.t.projTitle)}
       </Box>
       <Text dimColor wrap="wrap">

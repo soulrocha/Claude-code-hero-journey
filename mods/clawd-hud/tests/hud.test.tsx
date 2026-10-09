@@ -75,6 +75,15 @@ for (const [option, mochila, about] of [
   })
 }
 
+test('todo Svg do painel declara o esquema de cor (sem ele o frame pinta fundo branco)', { options: { language: 'pt-BR' } }, async ($, on) => {
+  on('session.usage', usage)
+  const ui = await $.ui.mount(pane('desktop'))
+  const svgs = await ui.findAll({ type: 'Svg' })
+  expect(svgs.length).toBeGreaterThan(0)
+  for (const s of svgs) expect(String(s.props.source)).toContain('<style>:root{color-scheme:dark}</style>')
+  await ui.unmount()
+})
+
 test('no terminal o painel desenha só texto', { options: { language: 'pt-BR' } }, async ($, on) => {
   on('session.usage', usage)
   const ui = await $.ui.mount(pane('terminal'))
@@ -120,7 +129,9 @@ test('a faixa mostra a classe e o que ela faz enquanto o Claude trabalha', { opt
   await $.tool.call({ tool: 'Bash', tool_use_id: 'b1', command: 'npm test', description: 'Roda os testes do módulo' } as never)
 
   const working = await $.ui.mount(band(true))
-  expect(await working.find({ text: /Paladino · Roda os testes do módulo/ })).toBeDefined()
+  expect(await working.find({ text: /^Paladino$/ })).toBeDefined()
+  expect(await working.find({ text: /· Roda os testes do módulo/ })).toBeDefined()
+  expect((await working.find({ key: 'band' }))?.props.borderStyle).toBe('round')
   expect(String((await working.find({ type: 'Svg' }))?.props.alt)).toContain('Paladino')
   await working.unmount()
 

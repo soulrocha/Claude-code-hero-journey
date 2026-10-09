@@ -41,7 +41,7 @@ export const setupView = (
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="row" gap={2} alignItems="center">
-        {svg(c.ui, c.desktop, crab('druida', 64, c.palette, c.t.setupTitle, true), 'setup-crab')}
+        {svg(c, crab('druida', 64, c.palette, c.t.setupTitle, true), 'setup-crab')}
         {title(c, c.t.setupTitle)}
       </Box>
       <Text dimColor wrap="wrap">

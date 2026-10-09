@@ -196,8 +196,10 @@ async function usageNow($: EngineInterface) {
     context: usage.context.percent,
     mana: five === undefined ? undefined : 100 - five.percentUsed,
     manaAt: resetText(t, five?.resetsAt),
+    manaIn: untilOf(five?.resetsAt, Date.now()),
     vigor: week === undefined ? undefined : 100 - week.percentUsed,
     vigorAt: resetText(t, week?.resetsAt),
+    vigorIn: untilOf(week?.resetsAt, Date.now()),
   }
 }
 
@@ -593,6 +595,8 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       inventory: await read($, inventory),
       partyTab: await read($, partyTab),
       usage: await usageNow($),
+      working: await read($, working),
+      pendingInscriptions: pending(all).length,
     },
     {
       tab: tab => update($, partyTab, () => tab),

@@ -59,7 +59,7 @@ export const reportView = (
       {head}
       {title(c, `${c.t.chapter(r.chapter)} · ${r.title}`, r.verdict === 'aprovado' ? '?' : '!')}
       {c.desktop && r.beats.length > 0
-        ? svg(c.ui, true, timeline(r.beats, c.palette, b => `${c.t.className[b.cls]} · ${b.summary}`, pxOf(c)), 'timeline')
+        ? svg(c, timeline(r.beats, c.palette, b => `${c.t.className[b.cls]} · ${b.summary}`, pxOf(c)), 'timeline')
         : r.beats.length > 0 && <Text dimColor>{r.beats.map(b => (b.status === 'err' ? '✗' : '•')).join('─')}</Text>}
       <Text dimColor>{c.t.stats(r.actions, r.files, r.added, r.removed, fmtDuration(r.durationMs))}</Text>
       {line(c.t.result, r.result)}
