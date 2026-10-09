@@ -8,7 +8,6 @@ import { CLASSES, classColor, crab, doneQuestsArt, itemIcon, linkIcon, meter, qu
 import { isOn, isShown, MODULES, SECTIONS } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
 import { GITHUB_URL, LINKEDIN_URL, pxOf, svg, title, VERSION } from '../../core/ui'
-import { titleOf } from '../campanha/campanha'
 import { questView } from './painel'
 
 export type PaneData = {
@@ -53,18 +52,11 @@ export const mainView = (c: Ctx, d: PaneData, act: PaneActions, report: RenderEl
 }
 
 /**
- * O objetivo é o último pedido de verdade (5 palavras ou mais) depois do
- * primeiro, e o primeiro vira "começou como". Resposta curta ("sim", "ok")
- * não muda o objetivo.
+ * O objetivo é sempre o primeiro pedido, inteiro. Trocar pelo pedido de cada
+ * capítulo (como na demo) errou com frases reais ("Ok. Pode seguir…" virava "Ok.").
  */
-export const objectiveOf = (campaign: Campaign | null) => {
-  if (campaign === null) return { text: '', origin: '', n: 0 }
-  const n = campaign.chapters.length
-  const later = campaign.chapters.slice(1).filter(ch => ch.prompt.trim().split(/\s+/).length >= 5)
-  const chapter = later[later.length - 1]
-  if (chapter !== undefined) return { text: titleOf(chapter.prompt), origin: campaign.title, n }
-  return { text: campaign.objective, origin: '', n }
-}
+export const objectiveOf = (campaign: Campaign | null) =>
+  campaign === null ? { text: '', origin: '', n: 0 } : { text: campaign.objective, origin: '', n: campaign.chapters.length }
 
 const objectiveSection = (c: Ctx, campaign: Campaign | null, quests: readonly Quest[], act: PaneActions) => {
   const { Box, Button, Text } = c.ui
