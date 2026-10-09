@@ -46,10 +46,11 @@ export const svg = (c: Ctx, a: Art, key?: string) => {
 /** A largura útil em px, a partir das colunas do painel. */
 export const pxOf = (c: Ctx) => Math.min(c.width * 7.6, 420)
 
-export const title = (c: Ctx, text: string, mark?: '!' | '?') => {
+/** `room`: px reservados ao lado do título (o contador das quests). */
+export const title = (c: Ctx, text: string, mark?: '!' | '?', room = 0) => {
   const { Text } = c.ui
   return c.desktop ? (
-    svg(c, sectionTitle(text, c.palette, c.skin, pxOf(c), mark), `title-${text}`)
+    svg(c, sectionTitle(text, c.palette, c.skin, pxOf(c) - room, mark), `title-${text}`)
   ) : (
     <Text bold color="claude">
       {c.skin === 'epico' ? `◆ ${mark === undefined ? '' : `${mark} `}${text} ◆` : text.toUpperCase()}

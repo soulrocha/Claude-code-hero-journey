@@ -4,7 +4,7 @@ Atualizado em 2026-10-09. Feito para outra sessão do Claude Code continuar daqu
 
 ## Estado em uma linha
 
-As correções visuais estão no código e passam no validador e nos testes do motor (87/87). **Ainda falta ver no app desktop** e rodar o QA adversarial, que caiu por limite de uso antes de terminar.
+As correções visuais estão no código e passam no validador e nos testes do motor (89/89). O QA adversarial apontou 3 achados importantes, todos corrigidos no segundo commit. A árvore real que o mod desenha foi renderizada fora do app e bate com a estrutura da demo. **Ainda falta ver no app desktop.**
 
 ## O problema
 
@@ -59,15 +59,49 @@ Instalada, a HUD carregava (painel, faixa e classe certa), mas ficava "completam
    - Rode `npx -y tsc -p mods/clawd-hud --noEmit` e apague o arquivo depois.
    - Já existiam na `main`: o erro em `register.tsx` (~linha 321) e os de `tests/modules.test.tsx` e `tests/projetos.test.tsx`.
 
+## QA adversarial (veredito: REPROVADO no primeiro commit; achados corrigidos)
+
+| Achado | Correção |
+|---|---|
+| A partir do 2º capítulo, uma resposta curta ("sim") virava o objetivo | `objectiveOf` só troca o objetivo por um pedido de 5 palavras ou mais; teste em `model.test.ts` |
+| Objetivo cortado em 160 caracteres, sem tooltip | volta a aparecer inteiro (a campanha já limita a 280); teste em `model.test.ts` |
+| Com 40 colunas, o contador "10/12" passava da largura | `title(..., room)` reserva 48 px ao lado do título das quests |
+| (menor) Aba ativa sem moldura no desktop, porque o Button é nativo com ou sem `plain` | a moldura agora vem de um `Box` com borda |
+| (menor) Botão do grupo só com "▾", sem texto | voltou a ser "Separar ▾", e `expandGroup` está em uso de novo |
+
+Ficaram como estão: a barra dos subagentes sempre cheia (não existe progresso real no estado) e o tema automático com o sistema claro (paleta escura; problema antigo).
+
+O QA atacou e passaram:
+- terminal sem `Svg`, sem fundo e sem borda;
+- temas escuro, claro e automático, com o `color-scheme` certo em todo SVG;
+- 0 e 12 quests;
+- 8 subagentes rodando e 8 concluídos;
+- diário com linhas em erro e em execução;
+- chaves `mochila`, `grimorio` e `split-<id>`;
+- en sem palavras em português.
+
+## Renderização fora do app
+
+Um teste temporário (já apagado) montou um estado parecido com o da demo e exportou `ui.drawn()` do Pane, da faixa e do diário. O estado tinha 2 capítulos, 6 quests e 2 subagentes. As árvores foram desenhadas numa página com `Box` em flex e cada `Svg` num `iframe sandbox`, como o desktop faz.
+
+O resultado bate com a estrutura do quadro 180 da demo:
+- objetivo com "cap. 2 · começou como" e barra 1/6;
+- quest atual destacada;
+- cartões do Clawd, do QA adversarial e da Integração com retrato emoldurado;
+- rodapé com barras e ↻;
+- faixa em cartão;
+- chip `2/2` no grupo.
+
+Isso prova a árvore, não a pintura do app.
+
 ## Verificado e não verificado
 
-- **Verificado:** `claude plugin validate` passou e `claude plugin test` deu 87/87. Nos tipos, nenhum erro novo em `hooks/`. A causa do fundo branco foi reproduzida num navegador.
+- **Verificado:** `claude plugin validate` passou e `claude plugin test` deu 89/89. Nos tipos, nenhum erro novo em `hooks/`. A causa do fundo branco foi reproduzida num navegador, e as árvores foram renderizadas como descrito acima.
 - **Não verificado:**
   - a aparência no app desktop depois do `/reload-plugins`;
   - se o desktop aceita hex de 8 dígitos (`TONE.card`) em `backgroundColor`;
   - se a borda dos `Box` (molduras, chips, faixa) fica como na demo;
   - o tema claro e o automático no app.
-- **QA adversarial:** começou e parou por limite de uso, antes de dar veredito.
 
 ## Próximos passos, em ordem
 
@@ -76,13 +110,7 @@ Instalada, a HUD carregava (painel, faixa e classe certa), mas ficava "completam
    - títulos sem serifa;
    - cartões e molduras.
 2. Se `TONE.card` não aparecer, trocar por tons sólidos (`#36322a` escuro, `#ebe4d3` claro).
-3. Rodar o QA adversarial com os casos:
-   - terminal sem `Svg`;
-   - objetivo de 280 caracteres;
-   - 0 e 12 quests;
-   - 8 subagentes;
-   - tema claro e automático;
-   - painel com 40 colunas.
+3. Rodar de novo o QA adversarial sobre o segundo commit.
 4. Deixados de fora de propósito:
    - cronômetro ao vivo na faixa (precisa de timer);
    - recolher quests (▴);

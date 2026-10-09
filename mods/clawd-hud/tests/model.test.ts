@@ -10,6 +10,7 @@ import { appendDecision, detect, isSubfolder, memoryTool, mentionsPrivate, oneLi
 import { diffOf, makeGuard, verdictOf, LABELS } from '../hooks/modules/guarda/guarda'
 import { parseInventory, questView } from '../hooks/modules/painel/painel'
 import { withScheme } from '../hooks/core/ui'
+import { objectiveOf } from '../hooks/modules/painel/view'
 
 describe('classes', () => {
   test('cada classe da tabela do handoff tem a sua atividade', async () => {
@@ -277,5 +278,25 @@ describe('esquema de cor do Svg', () => {
     expect(withScheme(src, { palette: 'claro', bg: '#f3f1ea' })).toContain('color-scheme:light}')
     expect(withScheme(src, { palette: 'escuro', bg: undefined })).toContain('color-scheme:light dark}')
     expect(withScheme(src, { palette: 'escuro', bg: '#2b2a27' }).match(/<style>/g)?.length).toBe(1)
+  })
+})
+
+describe('objetivo do painel', () => {
+  const camp = (prompts: string[]) =>
+    prompts.slice(1).reduce((c, p, i) => onPrompt(c, 'c', p, i + 1), newCampaign('c', prompts[0] ?? '', 0))
+
+  test('resposta curta não vira objetivo; pedido novo de verdade vira, com o primeiro em "começou como"', async () => {
+    const first = 'Implementar a paginação no servidor da lista de candidatos'
+    expect(objectiveOf(camp([first, 'sim'])).text).toBe(first)
+    expect(objectiveOf(camp([first, 'sim'])).origin).toBe('')
+    const o = objectiveOf(camp([first, 'Agora publique a lista em homologação com o filtro', 'ok']))
+    expect(o.text).toBe('Agora publique a lista em homologação com o filtro')
+    expect(o.origin).toBe(first)
+    expect(o.n).toBe(3)
+  })
+
+  test('objetivo longo aparece inteiro (até os 280 da campanha)', async () => {
+    const long = 'palavra '.repeat(30).trim()
+    expect(objectiveOf(camp([long])).text).toBe(long)
   })
 })
