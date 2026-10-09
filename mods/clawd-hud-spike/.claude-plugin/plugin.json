@@ -1,0 +1,12 @@
+{
+  "name": "clawd-hud-spike",
+  "version": "0.1.0",
+  "description": "Spike da HUD RPG: sondas no app real para os itens A VALIDAR (sem gastar tokens)",
+  "author": {
+    "name": "Saulo Rocha",
+    "url": "https://www.linkedin.com/in/soulrocha"
+  },
+  "repository": "https://github.com/soulrocha/Claude-code-hero-journey",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
