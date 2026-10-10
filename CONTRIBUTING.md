@@ -21,7 +21,7 @@ O script roda o validador (`claude plugin validate`) e os testes no motor do pr�
 
 ## Como o código é organizado
 
-- **Todo código que usa `$`** (a interface do motor) fica em `mods/clawd-hud/hooks/register.tsx`, em funções no topo do arquivo, porque o motor não segue o `$` através de imports.
+- **Todo código que usa `$`** (a interface do motor) fica em `mods/hero-journey/hooks/register.tsx`, em funções no topo do arquivo, porque o motor não segue o `$` através de imports.
 - **Cada módulo** fica em `hooks/modules/<módulo>/`: a lógica pura em `<módulo>.ts` e a tela em `view.tsx`.
 - **Textos** ficam em `hooks/core/i18n.ts`, sempre em português e em inglês.
 - **`<Button>`** recebe a prop `label` ou um único filho de texto. O motor recusa filhos compostos.

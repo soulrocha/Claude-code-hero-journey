@@ -10,12 +10,12 @@ Write-Host "== Claude Code" -ForegroundColor Cyan
 claude --version
 
 $falhas = 0
-foreach ($alvo in @('.', 'mods/clawd-hud', 'mods/clawd-hud-spike')) {
+foreach ($alvo in @('.', 'mods/hero-journey', 'mods/clawd-hud-spike')) {
   Write-Host "`n== validate $alvo" -ForegroundColor Cyan
   claude plugin validate $alvo
   if ($LASTEXITCODE -ne 0) { $falhas++ }
 }
-foreach ($mod in @('mods/clawd-hud', 'mods/clawd-hud-spike')) {
+foreach ($mod in @('mods/hero-journey', 'mods/clawd-hud-spike')) {
   Write-Host "`n== test $mod" -ForegroundColor Cyan
   claude plugin test $mod
   if ($LASTEXITCODE -ne 0) { $falhas++ }
