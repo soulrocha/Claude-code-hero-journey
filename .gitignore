@@ -1,2 +1,5 @@
 # Escritos pelo motor ao carregar o mod
 mods/*/.claude-plugin/types/
+
+# Protótipos e laboratório locais (descartáveis)
+prototype-lab/

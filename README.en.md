@@ -8,7 +8,7 @@
 **A cozy RPG HUD for Claude Code: glance and know what Claude is doing, and never lose the objective.**
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.293%2B-d97757?logo=anthropic&logoColor=white)](https://code.claude.com/docs/en/plugins/mods/overview)
-[![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/clawd-hud)
+[![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
 [![Tests](https://img.shields.io/badge/tests-90%20passing-8fc46a)](#%EF%B8%8F-development)
@@ -53,7 +53,7 @@ There are **10 modules**, each one toggled in the pane's ⚙.
 |:-:|---|---|
 | 📜 | **Logbook** | Puts the class mascot, a colored rail and a result chip on every tool row. Runs of the same class collapse into one group, and **Split ›** opens only that group. |
 | 🎯 | **Band above the prompt** | While Claude works, shows the 90 px Clawd with its animated tool, the class, and the intent Claude wrote before calling tools. Hides when the turn ends. |
-| 🗺️ | **Pane** (`/hud`) | Shows the objective, chapter quests, subagent party and file inventory, the report, and a footer with Backpack (context), Mana (5-hour window) and Vigor (weekly). |
+| 🗺️ | **Pane** (`/hero`) | Shows the objective, chapter quests, subagent party and file inventory, the report, and a footer with Backpack (context), Mana (5-hour window) and Vigor (weekly). |
 | 📖 | **Campaign and report** | Treats the session as a campaign; each message opens a chapter. Each chapter ends with a report holding the timeline, result and risk, plus **✓ Approve** and **✎ Adjust**. |
 | 🛡️ | **Protected-file guard** | Asks before Claude touches `.env`, pipelines or production `appsettings`, terminal commands included. Three modes, including the **boss encounter** with the Vault Guardian. Fails closed. |
 | 🎒 | **Backpack** | Past 85% context, sends the `/compact` instruction to your prompt, or compacts right away while Claude is idle. |
@@ -126,14 +126,14 @@ With a vault: add `-Vault` with its path and, for an inbox folder other than `In
 **From the marketplace:**
 
 ```
-/plugin install clawd-hud --marketplace soulrocha/Claude-code-hero-journey
+/plugin install hero-journey --marketplace soulrocha/Claude-code-hero-journey
 ```
 
-A mod installed from the terminal at user scope also loads in the desktop app's sessions. Then type **`/hud`**.
+A mod installed from the terminal at user scope also loads in the desktop app's sessions. Then type **`/hero`**.
 
 **What the install asks.** The mod's options are the questions below, and all of them can stay empty. To answer them:
-- **inside Claude Code:** `/plugin configure clawd-hud@claude-code-hero-journey`;
-- **from a terminal:** `claude plugin install clawd-hud@claude-code-hero-journey --config vaultPath=C:\Notes --config vaultInbox=Inbox --config language=en`, or later `claude plugin configure clawd-hud@claude-code-hero-journey`.
+- **inside Claude Code:** `/plugin configure hero-journey@claude-code-hero-journey`;
+- **from a terminal:** `claude plugin install hero-journey@claude-code-hero-journey --config vaultPath=C:\Notes --config vaultInbox=Inbox --config language=en`, or later `claude plugin configure hero-journey@claude-code-hero-journey`.
 
 The terminal install does not ask the questions by itself: it only lists the options left unset. Restart Claude Code after changing an option.
 
@@ -161,10 +161,10 @@ You can get back to it from ⚙ → ✦ First steps.
 1. Clone the repository.
 2. In `%USERPROFILE%\.claude\settings.json`, inside `"env"`, point at the mod folder in your clone:
    ```json
-   "CLAUDE_CODE_PLUGIN_DIRS": "C:\\path\\to\\clone\\mods\\clawd-hud",
+   "CLAUDE_CODE_PLUGIN_DIRS": "C:\\path\\to\\clone\\mods\\hero-journey",
    "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
    ```
-3. Restart the app and type `/hud`. Saving a file reloads the mod.
+3. Restart the app and type `/hero`. Saving a file reloads the mod.
 
 </details>
 
@@ -192,7 +192,7 @@ You can get back to it from ⚙ → ✦ First steps.
 > [!NOTE]
 > **What about the app's sidebar?** The mod API cannot change the native sidebar: it is not among the components a mod can redraw, and there is no call to rename or group sessions. That's why projects, their folders and the access to them live in the HUD's pane (🗂 in the footer, or `/projetos`).
 
-Each module's details, known limits and code layout are in the [mod's README](mods/clawd-hud/README.md), which is in Portuguese with an English summary.
+Each module's details, known limits and code layout are in the [mod's README](mods/hero-journey/README.md), which is in Portuguese with an English summary.
 
 ## 🔒 Tokens and privacy
 
@@ -314,7 +314,7 @@ Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Foll
 
 The HUD's code is its own, but it stands on others' work.
 
-**Code patterns** from the [**claude-code-templates**](https://github.com/davila7/claude-code-templates) mods by **Daniel (San) Ávila**, MIT-licensed. Each module credits its source in its header, and the license notice is in [`THIRD_PARTY_NOTICES.md`](mods/clawd-hud/THIRD_PARTY_NOTICES.md).
+**Code patterns** from the [**claude-code-templates**](https://github.com/davila7/claude-code-templates) mods by **Daniel (San) Ávila**, MIT-licensed. Each module credits its source in its header, and the license notice is in [`THIRD_PARTY_NOTICES.md`](mods/hero-journey/THIRD_PARTY_NOTICES.md).
 
 | Source mod | What it inspired |
 |---|---|
@@ -346,7 +346,7 @@ Made by **Saulo Rocha**, a developer (Angular, .NET and Azure DevOps).
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 Saulo Rocha. The parts adapted from claude-code-templates keep their original MIT notice in [`THIRD_PARTY_NOTICES.md`](mods/clawd-hud/THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE) © 2026 Saulo Rocha. The parts adapted from claude-code-templates keep their original MIT notice in [`THIRD_PARTY_NOTICES.md`](mods/hero-journey/THIRD_PARTY_NOTICES.md).
 
 <div align="center">
 <br>
