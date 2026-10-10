@@ -1,4 +1,4 @@
-﻿# Instala a HUD (clawd-hud) a partir de um clone local do repositório (Windows, PowerShell).
+﻿# Instala a HUD (hero-journey) a partir de um clone local do repositório (Windows, PowerShell).
 # Clona ou atualiza o repo, roda o verificar.ps1 e instala pelo marketplace local,
 # que não depende do branch padrão do GitHub. Não gasta tokens.
 #
@@ -29,7 +29,7 @@ if ($AiMemory -ne '') {
   Write-Warning '-AiMemory foi ignorado: o grimório grava no ai-memory pelo MCP dele, sem caminho de pasta.'
 }
 $marketplace = 'claude-code-hero-journey'
-$plugin = "clawd-hud@$marketplace"
+$plugin = "hero-journey@$marketplace"
 
 function Passo($texto) { Write-Host "`n== $texto" -ForegroundColor Cyan }
 function Rodar([string]$exe, [string[]]$argumentos) {
@@ -78,12 +78,12 @@ if ($lista -match [regex]::Escape($marketplace)) {
   Rodar claude @('plugin', 'marketplace', 'add', $Pasta)
 }
 
-Passo 'Instalando clawd-hud'
+Passo 'Instalando hero-journey'
 $config = @('--config', "language=$Lingua")
 if ($Vault -ne '') { $config += @('--config', "vaultPath=$Vault") }
 if ($VaultInbox -ne '') { $config += @('--config', "vaultInbox=$VaultInbox") }
 $instalados = (claude plugin list) -join "`n"
-if ($instalados -match 'clawd-hud') {
+if ($instalados -match 'hero-journey') {
   if ($Vault -ne '' -or $VaultInbox -ne '') {
     Write-Warning 'Já instalado: -Vault e -VaultInbox não são reaplicados na atualização. Ajuste em ⚙ → ✦ Primeiros passos.'
   }
@@ -92,5 +92,5 @@ if ($instalados -match 'clawd-hud') {
   Rodar claude (@('plugin', 'install', $plugin) + $config)
 }
 
-Write-Host "`nInstalado. Feche e abra o Claude Code (terminal ou app desktop) e digite /hud." -ForegroundColor Green
+Write-Host "`nInstalado. Feche e abra o Claude Code (terminal ou app desktop) e digite /hero." -ForegroundColor Green
 Write-Host 'Achou algo estranho? Abra uma issue: https://github.com/soulrocha/Claude-code-hero-journey/issues' -ForegroundColor Green
