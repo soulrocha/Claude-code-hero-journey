@@ -190,6 +190,9 @@ const pctOf = (steps: readonly Step[]) => {
 export type StepWords = { step: (n: number, name: string, state: Step['state']) => string; steps: (done: number, total: number) => string; chapter: (n: number) => string }
 
 /** A barra do objetivo: fina, de canto a canto, um losango por passo (ToxiUI). */
+/** Losangos desenhados no máximo: os mais recentes. Contagem e % usam sempre todas as etapas. */
+export const MAX_MARKS = 12
+
 export const objectiveBar = (w: number, steps: readonly Step[], chapter: number, p: Palette, words: StepWords): Art => {
   const k = TONES[p]
   const h = 36
@@ -198,11 +201,13 @@ export const objectiveBar = (w: number, steps: readonly Step[], chapter: number,
   const pad = 5
   const inner0 = w - pad * 2
   let marks = ''
-  // Até 30 losangos; com mais quests a barra fica só com o preenchimento (o Svg tem teto de tamanho).
-  ;(steps.length <= 30 ? steps : []).forEach((s, i) => {
-    const x = pad + (inner0 * (i + 1)) / steps.length
+  // Só os últimos MAX_MARKS losangos, espaçados pela barra; o número no tooltip é o da etapa real.
+  const skip = Math.max(0, steps.length - MAX_MARKS)
+  const shown = steps.slice(skip)
+  shown.forEach((s, i) => {
+    const x = pad + (inner0 * (i + 1)) / shown.length
     const lit = s.state === 'done'
-    marks += `<g><title>${esc(words.step(i + 1, s.name, s.state))}</title><rect class="${s.state === 'now' ? 'breath' : ''}" x="${x - 3.5}" y="6.5" width="7" height="7" transform="rotate(45 ${x} 10)" fill="${lit || s.state === 'now' ? k.gild : k.hole}" stroke="${k.gild}" stroke-opacity="${lit ? 1 : 0.55}" stroke-width="1.2"/></g>`
+    marks += `<g><title>${esc(words.step(skip + i + 1, s.name, s.state))}</title><rect class="${s.state === 'now' ? 'breath' : ''}" x="${x - 3.5}" y="6.5" width="7" height="7" transform="rotate(45 ${x} 10)" fill="${lit || s.state === 'now' ? k.gild : k.hole}" stroke="${k.gild}" stroke-opacity="${lit ? 1 : 0.55}" stroke-width="1.2"/></g>`
   })
   const inner =
     `<defs><linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b8904a"/><stop offset="1" stop-color="#ecc985"/></linearGradient></defs>` +
@@ -444,10 +449,10 @@ export const bandArt = (
     const steps = goal.steps
     if (steps.length > 0) {
       const pct = pctOf(steps)
-      const marks = steps.length <= 30 ? steps : []
+      const marks = steps.slice(-MAX_MARKS)
       inner += `<rect x="${x0}" y="23" width="${bw}" height="2.5" rx="1.25" fill="${k.track}"/><rect x="${x0}" y="23" width="${(bw * pct) / 100}" height="2.5" rx="1.25" fill="${k.gild}"/>`
       marks.forEach((s, i) => {
-        const sx = x0 + (bw * (i + 1)) / steps.length - 2.5
+        const sx = x0 + (bw * (i + 1)) / marks.length - 2.5
         const lit = s.state !== 'next'
         inner += `<rect class="${s.state === 'now' ? 'breath' : ''}" x="${sx - 2.5}" y="21.75" width="5" height="5" transform="rotate(45 ${sx} 24.25)" fill="${lit ? k.gild : k.hole}" stroke="${k.gild}" stroke-opacity="${lit ? 1 : 0.5}"/>`
       })

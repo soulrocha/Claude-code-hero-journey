@@ -639,9 +639,5 @@ export const resolveLang = (
 const PT_WORDS =
   /(?<![\p{L}])(não|você|vc|para|pra|que|com|uma|um|isso|esse|essa|está|tá|então|também|arquivo|faça|faz|leia|fale|da|dos|das|os|roda|rodar|testes|veja|projeto|quantas|quantos|tem|como|mas|aqui|agora|vamos|pode|preciso|quero|meu|minha|ele|ela|seu|sua|pelo|pela|por favor|obrigad\p{L}*)(?![\p{L}])/giu
 
-/** Acento já basta; sem acento, duas palavras portuguesas diferentes ("leia o redme do projeto"). */
-export const looksPortuguese = (text: string) => {
-  if (/[ãõçáéíóúâêô]/i.test(text)) return true
-  const hits = new Set((text.match(PT_WORDS) ?? []).map(w => w.toLowerCase()))
-  return hits.size >= 2
-}
+/** Acento já basta; sem acento, duas ocorrências de palavras portuguesas (repetidas valem: "para… para…"). */
+export const looksPortuguese = (text: string) => /[ãõçáéíóúâêô]/i.test(text) || (text.match(PT_WORDS) ?? []).length >= 2

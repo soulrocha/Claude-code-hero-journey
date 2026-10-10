@@ -90,8 +90,8 @@ export const bandView = (
           label: byQuests ? `${done}/${steps.length}` : c.t.chapterShort(Math.max(1, chapters)),
           current: now$ === undefined || now$.name === c.t.chapter(chapters) ? '' : now$.name,
           tip: now$ ? `${byQuests ? c.t.bandStep(Math.min(done + 1, steps.length), steps.length) : c.t.chapter(chapters)}: ${now$.name}` : c.t.chapter(chapters),
-          // Com muitos capítulos, só os 12 mais recentes: os losangos não se amontoam.
-          steps: steps.length > 12 ? steps.slice(-12) : steps,
+          // Todas as etapas: a arte conta todas e desenha só os 12 losangos mais recentes.
+          steps,
         }
   const w = Math.max(160, Math.round(c.width * 7.6))
   // A raridade olha só o fim do caminho: uma pasta-ancestral "api" não torna tudo raro.

@@ -30,6 +30,8 @@ if ($AiMemory -ne '') {
 }
 $marketplace = 'claude-code-hero-journey'
 $plugin = "hero-journey@$marketplace"
+# Até a v0.4 o plugin se chamava clawd-hud: na atualização ele sai, para não haver duas HUDs e dois guardas.
+$pluginAntigo = "clawd-hud@$marketplace"
 
 function Passo($texto) { Write-Host "`n== $texto" -ForegroundColor Cyan }
 function Rodar([string]$exe, [string[]]$argumentos) {
@@ -40,6 +42,7 @@ function Rodar([string]$exe, [string[]]$argumentos) {
 if ($Desinstalar) {
   Passo 'Desinstalando'
   claude plugin uninstall $plugin
+  if (((claude plugin list) -join "`n") -match [regex]::Escape($pluginAntigo)) { claude plugin uninstall $pluginAntigo }
   claude plugin marketplace remove $marketplace
   Write-Host 'Feito. Reinicie o Claude Code.' -ForegroundColor Green
   exit 0
@@ -83,7 +86,12 @@ $config = @('--config', "language=$Lingua")
 if ($Vault -ne '') { $config += @('--config', "vaultPath=$Vault") }
 if ($VaultInbox -ne '') { $config += @('--config', "vaultInbox=$VaultInbox") }
 $instalados = (claude plugin list) -join "`n"
-if ($instalados -match 'hero-journey') {
+if ($instalados -match [regex]::Escape($pluginAntigo)) {
+  Write-Warning 'Achei a versão antiga (clawd-hud): removo antes de instalar o hero-journey.'
+  Rodar claude @('plugin', 'uninstall', $pluginAntigo)
+}
+# Casa o plugin inteiro (nome@marketplace): só "hero-journey" casaria com o nome do marketplace.
+if ($instalados -match [regex]::Escape($plugin)) {
   if ($Vault -ne '' -or $VaultInbox -ne '') {
     Write-Warning 'Já instalado: -Vault e -VaultInbox não são reaplicados na atualização. Ajuste em ⚙ → ✦ Primeiros passos.'
   }
