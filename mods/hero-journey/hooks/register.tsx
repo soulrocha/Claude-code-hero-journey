@@ -20,7 +20,7 @@ import { TONE } from './core/art'
 import { DICT, looksPortuguese, resolveLang } from './core/i18n'
 import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule, toggleSection, withProfile } from './core/prefs'
 import type { Ctx } from './core/ui'
-import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, reports, onPrompt, prune, storeKey } from './modules/campanha/campanha'
+import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, goalOf, reports, onPrompt, prune, storeKey } from './modules/campanha/campanha'
 import { celebrate } from './modules/comemoracao/comemoracao'
 import { groupFor, groupView } from './modules/diario/diario'
 import { groupHeadView, rowView } from './modules/diario/view'
@@ -32,7 +32,7 @@ import { diffOf, LABELS, listOption, makeGuard, shellTargets, verdictOf } from '
 import { bossView, guardLineView } from './modules/guarda/view'
 import { COMPACT_AT, compactInstruction, shouldWarn } from './modules/mochila/mochila'
 import { compactCard } from './modules/mochila/view'
-import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, STATUS_ARGV, upsertMember } from './modules/painel/painel'
+import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, questView, STATUS_ARGV, upsertMember } from './modules/painel/painel'
 import { setupView } from './modules/painel/primeiros-passos'
 import { aboutView, configView, mainView } from './modules/painel/view'
 import {
@@ -502,7 +502,12 @@ async function refreshTasks($: EngineInterface) {
     readingTasks = true
     const ran = (await $.tool.call({ tool: 'TaskList' } as never)) as { result?: { tasks?: { id?: unknown; subject?: unknown; status?: unknown }[] } }
     const tasks = ran.result?.tasks ?? []
-    if (tasks.length === 0) return
+    // Lista vazia: as tarefas foram concluídas e apagadas. Saem as quests que vieram
+    // dela; as do TodoWrite (id "todo-N") ficam, porque o TaskList não as conhece.
+    if (tasks.length === 0) {
+      await update($, quests, list => list.filter(q => q.id.startsWith('todo-')))
+      return
+    }
     await update($, quests, () =>
       tasks
         .filter(t => typeof t.id === 'string' && typeof t.subject === 'string')
@@ -531,6 +536,32 @@ async function windowsCulture($: EngineInterface): Promise<string | undefined> {
   } catch {
     return undefined
   }
+}
+
+/** Linhas do painel por px de Svg (o desktop desenha uma linha de texto em ~19 px). */
+const PX_PER_ROW = 19
+
+/**
+ * Quantas linhas a tela principal ocupa, pela altura conhecida de cada arte.
+ * Estimativa com folga: serve só para decidir se o rodapé pode ficar preso.
+ */
+async function mainRows($: EngineInterface, cols: number) {
+  const rows = (px: number) => Math.ceil(px / PX_PER_ROW)
+  const c = await read($, campaign)
+  const q = questView(await read($, quests))
+  const members = await read($, party)
+  const inv = await read($, inventory)
+  const tab = await read($, partyTab)
+  const width = Math.max(10, cols - 2)
+  const goal = c === null ? 1 : Math.ceil(goalOf(c).length / width)
+  const objective = 1 + goal + rows(36) + (c === null ? 0 : 2)
+  const questsPx = q.current === undefined && q.done.length === 0 ? PX_PER_ROW : (q.done.length > 0 ? 28 : 0) + 48 + q.next.length * 24 + (q.mist > 0 ? 18 : 0)
+  const questRows = 1 + rows(questsPx) + (q.current === undefined && q.done.length === 0 ? 2 : 0)
+  const active = Math.min(3, members.filter(m => m.status === 'run').length)
+  const partyRows = rows((1 + active) * 62 + (members.length > active ? 30 : 0))
+  const invRows = 2 + rows(Math.max(1, Math.min(8, inv.items.length || (inv.recent ?? []).length)) * 24)
+  const footer = rows(24) + 1
+  return objective + questRows + 2 + (tab === 'grupo' ? partyRows : invRows) + footer + 4
 }
 
 /** O ◈ da faixa: abre o painel se estiver fechado, fecha se estiver aberto. */
@@ -1112,7 +1143,10 @@ export const register: Register = (on, options) => {
     // A tela principal (ou a que cai nela com o módulo desligado) ocupa a altura toda.
     const v = await read($, view)
     const p = await prefsNow($)
-    const full = v === 'main' || (v === 'projetos' && !isOn(p, 'projetos')) || (v === 'grimorio' && !isOn(p, 'grimorio'))
+    const main = v === 'main' || (v === 'projetos' && !isOn(p, 'projetos')) || (v === 'grimorio' && !isOn(p, 'grimorio'))
+    // O motor não tem rolagem dentro do painel: o rodapé só fica preso quando tudo cabe.
+    // Se não couber, o painel rola inteiro e nada fica escondido.
+    const full = main && (await mainRows($, e.props.bodyColumns)) <= e.props.scroll.bodyRows
     return (
       <Box flexDirection="column" paddingX={1} height={full ? e.props.scroll.bodyRows : undefined}>
         {body}

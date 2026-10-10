@@ -92,8 +92,7 @@ const objectiveSection = (c: Ctx, d: PaneData, act: PaneActions) => {
   }
   // Como no laboratório aprovado: título do quest log, o objetivo curto em negrito
   // (o inteiro no tooltip da barra) e a barra fina de canto a canto. Com muitos
-  // capítulos, a barra mostra só os 12 últimos para os losangos não se amontoarem.
-  const bar = steps.length > 12 ? steps.slice(-12) : steps
+  // capítulos, a barra conta todos e desenha só os 12 losangos mais recentes.
   // Ações do objetivo como chips: ícone desenhado + botão, separadas do texto.
   const chip = (key: string, iconName: IconName, label: string, onPress: () => void) => (
     <Box key={`chip-${key}`} flexDirection="row" gap={1} alignItems="center">
@@ -107,7 +106,7 @@ const objectiveSection = (c: Ctx, d: PaneData, act: PaneActions) => {
       <Text bold wrap="wrap">
         {o.short === '' ? c.t.noObjective : o.short}
       </Text>
-      {bar.length > 0 && svg(c, objectiveBar(pxOf(c), bar, n, c.palette, stepWords(c)), 'objective-bar')}
+      {steps.length > 0 && svg(c, objectiveBar(pxOf(c), steps, n, c.palette, stepWords(c)), 'objective-bar')}
       {d.campaign !== null && (
         <Box flexDirection="row" gap={3} marginTop={1}>
           {chip('recalibrate', 'memoria', c.t.recalibrate.replace(/^✦s*/, ''), act.recalibrate)}

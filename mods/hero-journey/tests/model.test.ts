@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { DiaryEntry } from '../types'
 import { classOf } from '../hooks/core/classes'
-import { resolveLang } from '../hooks/core/i18n'
+import { looksPortuguese, resolveLang } from '../hooks/core/i18n'
 import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule, toggleSection, withProfile } from '../hooks/core/prefs'
 import { buildReport, briefingOf, newCampaign, onPrompt } from '../hooks/modules/campanha/campanha'
 import { groupFor, groupStats, groupView } from '../hooks/modules/diario/diario'
@@ -13,6 +13,7 @@ import { withScheme } from '../hooks/core/ui'
 import { objectiveOf } from '../hooks/modules/painel/view'
 import { cutAtWord, shortGoal } from '../hooks/modules/campanha/campanha'
 import { humanType } from '../hooks/core/classes'
+import { objectiveBar } from '../hooks/core/hero-art'
 
 describe('classes', () => {
   test('cada classe da tabela do handoff tem a sua atividade', async () => {
@@ -330,5 +331,20 @@ describe('objetivo curto (QA 2026-10-09)', () => {
     expect(humanType('acme-qa-reviewer')).toBe('QA reviewer')
     expect(humanType('Explore', { explore: 'Explorer' })).toBe('Explorer')
     expect(humanType('general-purpose')).toBe('')
+  })
+})
+
+describe('achados do Devin no PR #2', () => {
+  test('a barra conta todas as etapas e desenha só os 12 losangos mais recentes', async () => {
+    const steps = [{ name: 'velha', state: 'next' as const }, ...Array.from({ length: 12 }, (_, i) => ({ name: `p${i}`, state: 'done' as const }))]
+    const words = { step: (n: number, name: string) => `${n} ${name}`, steps: () => 'passos', chapter: (n: number) => `cap. ${n}` }
+    const art = objectiveBar(300, steps, 1, 'escuro', words)
+    expect(art.alt).toBe('12/13')
+    expect((art.source.match(/rotate\(45/g) ?? []).length).toBe(12)
+  })
+
+  test('palavras portuguesas repetidas também contam', async () => {
+    expect(looksPortuguese('leia isto e leia aquilo')).toBe(true)
+    expect(looksPortuguese('Read the file and summarize it')).toBe(false)
   })
 })
