@@ -8,7 +8,7 @@
 **Uma HUD de RPG aconchegante para o Claude Code: bata o olho e saiba o que o Claude está fazendo, sem perder o objetivo.**
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.293%2B-d97757?logo=anthropic&logoColor=white)](https://code.claude.com/docs/en/plugins/mods/overview)
-[![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/clawd-hud)
+[![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Idiomas](https://img.shields.io/badge/idiomas-pt--BR%20%C2%B7%20English-b49cf0)](#%EF%B8%8F-configuração)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20por%20padr%C3%A3o-8fc46a)](#-tokens-e-privacidade)
 [![Testes](https://img.shields.io/badge/testes-90%20passando-8fc46a)](#%EF%B8%8F-desenvolvimento)
@@ -53,7 +53,7 @@ São **10 módulos**, e cada um liga e desliga no ⚙ do painel.
 |:-:|---|---|
 | 📜 | **Diário de bordo** | Mascote da classe, trilho colorido e chip de resultado em cada ferramenta. As ações seguidas da mesma classe viram um grupo, e **Separar ›** abre só aquele. |
 | 🎯 | **Faixa acima do prompt** | Enquanto o Claude trabalha: o Clawd de 90 px com o acessório animado, a classe e a intenção que ele escreveu antes das ferramentas. Some no fim do turno. |
-| 🗺️ | **Painel** (`/hud`) | Objetivo → quests do capítulo → grupo de subagentes e inventário de arquivos → relatório → rodapé com Mochila (contexto), Mana (janela de 5h) e Vigor (semanal). |
+| 🗺️ | **Painel** (`/hero`) | Objetivo → quests do capítulo → grupo de subagentes e inventário de arquivos → relatório → rodapé com Mochila (contexto), Mana (janela de 5h) e Vigor (semanal). |
 | 📖 | **Campanha e relatório** | A sessão vira uma campanha, e cada mensagem abre um capítulo. No fim, o relatório traz a linha do tempo, o resultado, o risco e os botões **✓ Aprovar** e **✎ Ajustar**. |
 | 🛡️ | **Guarda dos protegidos** | Pergunta antes de mexer em `.env`, pipelines e `appsettings` de produção, inclusive por comando de terminal. Tem três modos, um deles o **encontro com chefe** com o Guardião do Cofre. Se algo der errado, bloqueia. |
 | 🎒 | **Mochila** | Quando o contexto passa de 85%, leva a instrução do `/compact` ao prompt, ou compacta na hora com o Claude parado. |
@@ -127,14 +127,14 @@ Com vault: acrescente `-Vault` com o caminho dele e, se quiser outra pasta de en
 **Pelo marketplace:**
 
 ```
-/plugin install clawd-hud --marketplace soulrocha/Claude-code-hero-journey
+/plugin install hero-journey --marketplace soulrocha/Claude-code-hero-journey
 ```
 
-Instalado pelo terminal no escopo de usuário, o mod também carrega nas sessões do app desktop. Depois, digite **`/hud`**.
+Instalado pelo terminal no escopo de usuário, o mod também carrega nas sessões do app desktop. Depois, digite **`/hero`**.
 
 **O que a instalação pergunta.** As opções do mod são as perguntas abaixo. Todas podem ficar vazias. Para responder:
-- **dentro do Claude Code:** `/plugin configure clawd-hud@claude-code-hero-journey`;
-- **pelo terminal:** `claude plugin install clawd-hud@claude-code-hero-journey --config vaultPath=C:\Notas --config vaultInbox=Inbox --config language=pt-BR`, ou depois `claude plugin configure clawd-hud@claude-code-hero-journey`.
+- **dentro do Claude Code:** `/plugin configure hero-journey@claude-code-hero-journey`;
+- **pelo terminal:** `claude plugin install hero-journey@claude-code-hero-journey --config vaultPath=C:\Notas --config vaultInbox=Inbox --config language=pt-BR`, ou depois `claude plugin configure hero-journey@claude-code-hero-journey`.
 
 A instalação pelo terminal não faz as perguntas sozinha: ela só avisa quais opções ficaram sem valor. Depois de mudar uma opção, reinicie o Claude Code.
 
@@ -162,10 +162,10 @@ Dá para voltar a ele pelo ⚙ → ✦ Primeiros passos.
 1. Clone o repositório.
 2. Em `%USERPROFILE%\.claude\settings.json`, no bloco `"env"`, aponte para a pasta do mod no seu clone:
    ```json
-   "CLAUDE_CODE_PLUGIN_DIRS": "C:\\caminho\\do\\clone\\mods\\clawd-hud",
+   "CLAUDE_CODE_PLUGIN_DIRS": "C:\\caminho\\do\\clone\\mods\\hero-journey",
    "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
    ```
-3. Reinicie o app e digite `/hud`. Cada arquivo salvo recarrega o mod.
+3. Reinicie o app e digite `/hero`. Cada arquivo salvo recarrega o mod.
 
 </details>
 
@@ -186,7 +186,7 @@ Dá para voltar a ele pelo ⚙ → ✦ Primeiros passos.
 > [!NOTE]
 > **E a barra lateral do app?** A API de mods não deixa mudar a barra lateral nativa: ela não está entre os componentes que um mod redesenha, e não há chamada para renomear ou agrupar sessões. Por isso os projetos, com as pastas e o acesso a elas, ficam no painel da HUD (🗂 no rodapé ou `/projetos`).
 
-Detalhes de cada módulo, os limites conhecidos e a estrutura do código estão no [README do mod](mods/clawd-hud/README.md).
+Detalhes de cada módulo, os limites conhecidos e a estrutura do código estão no [README do mod](mods/hero-journey/README.md).
 
 ## 🔒 Tokens e privacidade
 
@@ -278,7 +278,7 @@ flowchart LR
 ```
 .
 ├── mods/
-│   ├── clawd-hud/            # a HUD (o mod)
+│   ├── hero-journey/            # a HUD (o mod)
 │   │   ├── hooks/
 │   │   │   ├── register.tsx  # liga os módulos aos eventos
 │   │   │   ├── core/         # arte, textos pt/en, classes, preferências
@@ -330,7 +330,7 @@ Quer contribuir? Leia o [CONTRIBUTING](CONTRIBUTING.md). Achou uma falha de segu
 
 O código da HUD é próprio, mas não nasceu do nada.
 
-**Padrões de código.** Alguns padrões vieram dos mods do [**claude-code-templates**](https://github.com/davila7/claude-code-templates), de **Daniel (San) Ávila**, sob licença MIT. Cada módulo cita o padrão de origem no cabeçalho, e o aviso da licença está em [`THIRD_PARTY_NOTICES.md`](mods/clawd-hud/THIRD_PARTY_NOTICES.md).
+**Padrões de código.** Alguns padrões vieram dos mods do [**claude-code-templates**](https://github.com/davila7/claude-code-templates), de **Daniel (San) Ávila**, sob licença MIT. Cada módulo cita o padrão de origem no cabeçalho, e o aviso da licença está em [`THIRD_PARTY_NOTICES.md`](mods/hero-journey/THIRD_PARTY_NOTICES.md).
 
 | Mod de origem | O que inspirou |
 |---|---|
@@ -362,7 +362,7 @@ Feito por **Saulo Rocha**, desenvolvedor (Angular, .NET e Azure DevOps).
 
 ## 📄 Licença
 
-[MIT](LICENSE) © 2026 Saulo Rocha. Os trechos adaptados do claude-code-templates mantêm o aviso MIT original em [`THIRD_PARTY_NOTICES.md`](mods/clawd-hud/THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE) © 2026 Saulo Rocha. Os trechos adaptados do claude-code-templates mantêm o aviso MIT original em [`THIRD_PARTY_NOTICES.md`](mods/hero-journey/THIRD_PARTY_NOTICES.md).
 
 <div align="center">
 <br>

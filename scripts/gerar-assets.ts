@@ -1,4 +1,4 @@
-// Gera as imagens do README a partir da arte real da HUD (mods/clawd-hud/hooks/core/art.ts):
+// Gera as imagens do README a partir da arte real da HUD (mods/hero-journey/hooks/core/art.ts):
 // o banner animado e o ícone animado de cada classe, nas versões escura e clara.
 //   bun run scripts/gerar-assets.ts
 // A demo animada e os prints vêm de scripts/gravar-demo.cjs (protótipo + Playwright + ffmpeg).
@@ -6,9 +6,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { CLASSES, crab, esc } from '../mods/clawd-hud/hooks/core/art'
-import { DICT } from '../mods/clawd-hud/hooks/core/i18n'
-import type { Palette } from '../mods/clawd-hud/types'
+import { CLASSES, crab, esc } from '../mods/hero-journey/hooks/core/art'
+import { DICT } from '../mods/hero-journey/hooks/core/i18n'
+import type { Palette } from '../mods/hero-journey/types'
 
 const OUT = join(import.meta.dir, '..', 'docs', 'assets')
 mkdirSync(join(OUT, 'classes'), { recursive: true })

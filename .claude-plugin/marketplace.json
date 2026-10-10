@@ -6,8 +6,8 @@
   },
   "plugins": [
     {
-      "name": "clawd-hud",
-      "source": "./mods/clawd-hud",
+      "name": "hero-journey",
+      "source": "./mods/hero-journey",
       "description": "HUD de RPG aconchegante para o Claude Code, com os caranguejos Clawd multiclasse (pt-BR e English)"
     }
   ]
