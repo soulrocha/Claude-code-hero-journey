@@ -131,6 +131,8 @@ With a vault: add `-Vault` with its path and, for an inbox folder other than `In
 
 A mod installed from the terminal at user scope also loads in the desktop app's sessions. Then type **`/hero`**.
 
+**Coming from v0.4 (`clawd-hud`)?** The plugin was renamed. Remove the old one first, so you do not end up with two HUDs and two guards: `claude plugin uninstall clawd-hud@claude-code-hero-journey`. `scripts\instalar.ps1` does this on its own.
+
 **What the install asks.** The mod's options are the questions below, and all of them can stay empty. To answer them:
 - **inside Claude Code:** `/plugin configure hero-journey@claude-code-hero-journey`;
 - **from a terminal:** `claude plugin install hero-journey@claude-code-hero-journey --config vaultPath=C:\Notes --config vaultInbox=Inbox --config language=en`, or later `claude plugin configure hero-journey@claude-code-hero-journey`.
