@@ -105,7 +105,8 @@ export const bandView = (
     idle,
     goal,
     c.palette,
-    26,
+    // O ◈ ocupa 26 px; o selo de alerta, quando aparece, empurra a trilha do objetivo para a esquerda.
+    26 + (alert === undefined ? 0 : Math.round([...alert].length * 7.6 + 12)),
     idleTip,
   )
   return (

@@ -11,7 +11,7 @@
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Idiomas](https://img.shields.io/badge/idiomas-pt--BR%20%C2%B7%20English-b49cf0)](#%EF%B8%8F-configuração)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20por%20padr%C3%A3o-8fc46a)](#-tokens-e-privacidade)
-[![Testes](https://img.shields.io/badge/testes-100%20passando-8fc46a)](#%EF%B8%8F-desenvolvimento)
+[![Testes](https://img.shields.io/badge/testes-102%20passando-8fc46a)](#%EF%B8%8F-desenvolvimento)
 [![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-d9b26a)](LICENSE)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20app%20desktop-e6b450)](#%EF%B8%8F-status-e-roadmap)
 
@@ -284,7 +284,7 @@ flowchart LR
 │   │   │   ├── core/         # arte, textos pt/en, classes, preferências
 │   │   │   └── modules/      # diario, faixa, painel, campanha, recibo, mochila
 │   │   │                     # (com os recursos), guarda, grimorio
-│   │   ├── tests/            # 100 testes no motor (desktop e terminal)
+│   │   ├── tests/            # 102 testes no motor (desktop e terminal)
 │   │   └── types/            # contrato do $.state
 │   └── clawd-hud-spike/      # sondas para validar a API no app real
 ├── docs/                     # imagens do README e o estilo de saída briefing-de-bordo
@@ -305,7 +305,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 bun run scripts/gerar-assets.ts
 ```
 
-São 100 testes da HUD e 5 do spike. Eles rodam no motor do próprio Claude Code (`claude plugin test`), nas superfícies desktop e terminal, e incluem regressões para cada achado do QA adversarial e da revisão do PR. A demo animada e as telas foram gravadas a partir do protótipo de referência, que não faz parte deste repositório.
+São 102 testes da HUD e 5 do spike. Eles rodam no motor do próprio Claude Code (`claude plugin test`), nas superfícies desktop e terminal, e incluem regressões para cada achado do QA adversarial e da revisão do PR. A demo animada e as telas foram gravadas a partir do protótipo de referência, que não faz parte deste repositório.
 
 Quer contribuir? Leia o [CONTRIBUTING](CONTRIBUTING.md). Achou uma falha de segurança? Siga a [política de segurança](SECURITY.md). As mudanças de cada versão estão no [CHANGELOG](CHANGELOG.md).
 

@@ -326,3 +326,35 @@ test('/clear, /resume e /branch recarregam as preferências guardadas (o session
   expect((await ui.find({ key: 'guard-chefe' }))?.text).toContain('◉')
   await ui.unmount()
 })
+
+test('revisão do Devin: depois de uma compactação que esvazia a mochila, o cartão de compactar sai', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const kept = memStore(on as never)
+  kept.set('setupDone', true)
+  let tokens = 150_000
+  const breakdown = { categories: [], autoCompactThreshold: 160_000, isAutoCompactEnabled: true }
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens, window: 200_000, breakdown }, rateLimits: [] } }) as never)
+  on('config.list', () => ({ value: [] }) as never)
+  on('classic.SessionStart', () => ({}) as never)
+  on('session.compact', () => ({ messages: [{ role: 'user', text: 'resumo', toolUses: [] }], tokensBefore: 150_000, tokensAfter: 30_000 }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Box', props: {}, children: [] }) as never)
+  const band = {
+    plugin: PLUGIN,
+    surface: 'desktop',
+    component: 'AbovePrompt',
+    requestId: 'band',
+    props: { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
+  } as const
+
+  // 150k de 160k: a mochila passa de 85% e o cartão entra.
+  await $.classic.SessionStart({ source: 'resume' } as never)
+  const before = await $.ui.mount(band)
+  expect(await before.find({ key: 'card-now' })).toBeDefined()
+  await before.unmount()
+
+  // O Claude Code compacta sozinho: a próxima leitura traz a mochila em 30k e o cartão sai.
+  tokens = 30_000
+  await $.classic.SessionStart({ source: 'resume' } as never)
+  const after = await $.ui.mount(band)
+  expect(await after.find({ key: 'card-now' })).toBeUndefined()
+  await after.unmount()
+})
