@@ -5,8 +5,8 @@
 // na pasta do módulo. Tudo o que usa `$` mora neste arquivo, porque o motor não
 // segue o `$` através de um import.
 //
-// Gasto de tokens: só o "Compactar agora" da mochila e o Haiku do grimório
-// (desligado por padrão), e os dois só com o clique da pessoa.
+// Gasto de tokens: só o "Compactar agora" da mochila, o ✦ Recalibrar objetivo e
+// o Haiku do grimório (desligado por padrão), e os três só com o clique da pessoa.
 //
 // Créditos dos padrões de código: Daniel Ávila (claude-code-templates, MIT),
 // citado em cada módulo e no README.
@@ -14,16 +14,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
 
-import type { Campaign, Card, DiaryEntry, Destination, GuardFile, Inscription, Lang, ModuleId, Palette, Prefs, Project } from '../types'
-import { agentClass, classOf, clockOf, patchStats, summaryOf, untilOf } from './core/classes'
+import type { Campaign, Card, DiaryEntry, Destination, GuardFile, Inscription, Lang, Member, ModuleId, Palette, Prefs } from '../types'
+import { agentClass, classOf, patchStats, summaryOf } from './core/classes'
 import { TONE } from './core/art'
 import { DICT, looksPortuguese, resolveLang } from './core/i18n'
-import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule, toggleSection, withProfile } from './core/prefs'
+import { isWindows, joinPath, openArgv, pickArgvs, pickedOf, subfolderOf } from './core/pasta'
+import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule } from './core/prefs'
 import type { Ctx } from './core/ui'
-import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, goalOf, reports, onPrompt, prune, storeKey } from './modules/campanha/campanha'
-import { celebrate } from './modules/comemoracao/comemoracao'
-import { groupFor, groupView } from './modules/diario/diario'
-import { groupHeadView, rowView } from './modules/diario/view'
+import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, goalOf, onPrompt, prune, storeKey } from './modules/campanha/campanha'
+import { rowView } from './modules/diario/view'
 import { bandView } from './modules/faixa/view'
 import { appendDecision, available, detect, haikuPrompt, isSubfolder, memoryTool, merge, pending, toggleDest, withSuffix, writesFor } from './modules/grimorio/grimorio'
 import type { Dests, Memory, Write } from './modules/grimorio/grimorio'
@@ -31,41 +30,25 @@ import { grimCard, grimPage } from './modules/grimorio/view'
 import { diffOf, LABELS, listOption, makeGuard, shellTargets, verdictOf } from './modules/guarda/guarda'
 import { bossView, guardLineView } from './modules/guarda/view'
 import { COMPACT_AT, compactInstruction, shouldWarn } from './modules/mochila/mochila'
+import { alertOf, bagOf, countdown, readingOf, short, warningsOf } from './modules/mochila/recursos'
+import type { UsageReading } from './modules/mochila/recursos'
 import { compactCard } from './modules/mochila/view'
 import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, questView, STATUS_ARGV, upsertMember } from './modules/painel/painel'
 import { setupView } from './modules/painel/primeiros-passos'
 import { aboutView, configView, mainView } from './modules/painel/view'
-import {
-  addFolder,
-  addProject,
-  baseFolderName,
-  currentProject,
-  hasAccess,
-  isInside,
-  loadProjects,
-  openSessionPrompt,
-  removeFolder,
-  removeProject,
-  settingsDirs,
-  togglePin,
-  withDirectories,
-} from './modules/projetos/projetos'
-import { projectsView } from './modules/projetos/view'
-import { briefOf, sideQuestPrompt } from './modules/side-quest/side-quest'
-import { sideQuestCard } from './modules/side-quest/view'
+import { leadOf, receiptOf } from './modules/recibo/recibo'
 
 const PANE = 'hero-journey'
 const PANE_TITLE = 'Hero Journey'
 // `Task` é o nome antigo da ferramenta Agent.
 const AGENT = /^(Agent|Task)$/
 const WRITES = /^(Edit|Write|NotebookEdit)$/
-const CARD_ORDER: readonly Card[] = ['grimorio', 'compactar', 'sideQuest']
+const CARD_ORDER: readonly Card[] = ['grimorio', 'compactar']
 
 const lang = atom({ plugin: 'hero-journey', key: 'lang' } as const, 'en')
 const theme = atom({ plugin: 'hero-journey', key: 'theme' } as const, 'dark')
 const turnId = atom({ plugin: 'hero-journey', key: 'turnId' } as const, '')
 const diary = atom({ plugin: 'hero-journey', key: 'diary' } as const, [])
-const expanded = atom({ plugin: 'hero-journey', key: 'expanded' } as const, [])
 const quests = atom({ plugin: 'hero-journey', key: 'quests' } as const, [])
 const party = atom({ plugin: 'hero-journey', key: 'party' } as const, [])
 const inventory = atom({ plugin: 'hero-journey', key: 'inventory' } as const, EMPTY_INVENTORY)
@@ -75,16 +58,14 @@ const cards = atom({ plugin: 'hero-journey', key: 'cards' } as const, [])
 const view = atom({ plugin: 'hero-journey', key: 'view' } as const, 'main')
 const partyTab = atom({ plugin: 'hero-journey', key: 'partyTab' } as const, 'grupo')
 const campaign = atom({ plugin: 'hero-journey', key: 'campaign' } as const, null)
-const reportAt = atom({ plugin: 'hero-journey', key: 'reportAt' } as const, 0)
-const reportOpen = atom({ plugin: 'hero-journey', key: 'reportOpen' } as const, false)
 const guard = atom({ plugin: 'hero-journey', key: 'guard' } as const, [])
 const refusals = atom({ plugin: 'hero-journey', key: 'refusals' } as const, [])
 const inscriptions = atom({ plugin: 'hero-journey', key: 'inscriptions' } as const, [])
 const intent = atom({ plugin: 'hero-journey', key: 'intent' } as const, '')
-const projects = atom({ plugin: 'hero-journey', key: 'projects' } as const, [])
-const sessionDirs = atom({ plugin: 'hero-journey', key: 'sessionDirs' } as const, [])
 const setup = atom({ plugin: 'hero-journey', key: 'setup' } as const, {})
-const confirmDel = atom({ plugin: 'hero-journey', key: 'confirmDel' } as const, '')
+const resources = atom({ plugin: 'hero-journey', key: 'resources' } as const, null)
+const tick = atom({ plugin: 'hero-journey', key: 'tick' } as const, 0)
+const warned = atom({ plugin: 'hero-journey', key: 'warned' } as const, {})
 
 const paletteOf = (value: string): Palette => (/light/i.test(value) ? 'claro' : 'escuro')
 
@@ -101,7 +82,10 @@ let langFromPrompt = false
 let interactive = true
 // O texto que abriu cada turno, para o grimório achar as preferências da pessoa.
 const turnPrompts = new Map<string, string>()
-let warned = false
+// O cartão de compactar entra uma vez por subida da mochila acima do limite.
+let bagWarned = false
+// O relógio da contagem do reset: um só, mesmo que o session.start rode de novo.
+let clock: { cancel: () => void } | undefined
 // Um Selar por vez: o segundo clique, enquanto o primeiro grava, não faz nada.
 let sealing = false
 
@@ -185,39 +169,47 @@ async function fillOrCopy($: EngineInterface, text: string) {
   return false
 }
 
-const resetText = (t: (typeof DICT)['pt'], iso: string | undefined) =>
-  iso === undefined ? '' : t.resetAt(clockOf(iso), untilOf(iso, Date.now()))
+/**
+ * Lê os recursos do motor. Com `detailed`, pede também o detalhamento (estimado
+ * localmente, sem tokens), que traz o ponto de compactação e o que ocupa a mochila.
+ */
+async function readResources($: EngineInterface, detailed: boolean, turnEnded: boolean) {
+  try {
+    const u = detailed ? await $.session.usage({ breakdown: 'summary' }) : await $.session.usage()
+    await takeReading($, u as unknown as UsageReading, turnEnded)
+  } catch {
+    // Sem leitura agora: o rodapé fica com a última.
+  }
+}
 
-async function usageNow($: EngineInterface) {
+/** Guarda a leitura, avisa a janela que ficou crítica e põe o cartão de compactar quando a mochila pesa. */
+async function takeReading($: EngineInterface, u: UsageReading, turnEnded: boolean) {
+  const next = readingOf(u, await read($, resources), turnEnded)
+  await update($, resources, () => next)
   const t = DICT[await langNow($)]
-  const usage = await $.session.usage()
-  const win = (kind: string) => usage.rateLimits.find(r => r.kind === kind)
-  const five = win('five_hour')
-  const week = win('seven_day')
-  return {
-    context: usage.context.percent,
-    mana: five === undefined ? undefined : 100 - five.percentUsed,
-    manaAt: resetText(t, five?.resetsAt),
-    manaIn: untilOf(five?.resetsAt, Date.now()),
-    vigor: week === undefined ? undefined : 100 - week.percentUsed,
-    vigorAt: resetText(t, week?.resetsAt),
-    vigorIn: untilOf(week?.resetsAt, Date.now()),
+  const before = await read($, warned)
+  const w = warningsOf(next.windows, before, Date.now())
+  if (JSON.stringify(w.warned) !== JSON.stringify(before)) await update($, warned, () => w.warned)
+  for (const f of w.fire) {
+    const name = f.kind === 'seven_day' ? t.footer.vigor : t.footer.mana
+    $.ui.toast(t.windowWarn(name, Math.round(f.left), f.resetIn === undefined ? '' : countdown(f.resetIn)))
+  }
+  if (await moduleOn($, 'mochila')) {
+    const step = shouldWarn(bagOf(next).percent ?? 0, bagWarned)
+    if (step === 'warn') {
+      bagWarned = true
+      await pushCard($, 'compactar')
+    } else if (step === 'reset') bagWarned = false
   }
 }
 
 /**
- * A campanha é acompanhada sempre (a comemoração e a side quest leem dela); o
- * módulo campanha decide se ela aparece no painel e se fica guardada no $.store.
+ * A campanha é acompanhada sempre (a faixa e o recibo leem dela); o módulo
+ * campanha decide se ela fica guardada no $.store.
  */
 async function saveCampaign($: EngineInterface, c: Campaign) {
   await update($, campaign, () => c)
   if (await moduleOn($, 'campanha')) await $.store.set(storeKey(c.id), c)
-}
-
-async function sideQuestText($: EngineInterface) {
-  const c = await read($, campaign)
-  const list = reports(c)
-  return briefOf({ campaign: c, quests: await read($, quests), inventory: await read($, inventory), last: list[list.length - 1] }, await langNow($))
 }
 
 async function compactNow($: EngineInterface) {
@@ -321,7 +313,11 @@ async function seal($: EngineInterface) {
     if (done > 0) $.ui.toast(t.sealed(done))
     if (done < list.length || missed.length > 0) $.ui.toast(t.notSealed(list.length - done, missed.join('; ')))
     await update($, inscriptions, all =>
-      all.map(i => (sealed[i.id] !== undefined ? { ...i, sealed: sealed[i.id] } : left[i.id] !== undefined ? { ...i, destinations: left[i.id] } : i)),
+      all.map((i): Inscription => {
+        const ok = sealed[i.id]
+        const rest = left[i.id]
+        return ok !== undefined ? { ...i, sealed: ok } : rest !== undefined ? { ...i, destinations: rest } : i
+      }),
     )
     if (pending(await read($, inscriptions)).length === 0) await dropCard($, 'grimorio')
   } finally {
@@ -421,40 +417,6 @@ async function guardCall($: EngineInterface, tool: string, toolUseId: string, fi
   return { deny: t.denyRefuse(names) }
 }
 
-/** Guarda os projetos no estado e no $.store (valem para todas as sessões). */
-async function saveProjects($: EngineInterface, change: (list: Project[]) => Project[]) {
-  // Lê o $.store na hora: outra sessão aberta pode ter criado projetos desde o início desta.
-  const stored = await $.store.get('projetos')
-  const next = change(stored === undefined ? [...(await read($, projects))] : loadProjects(stored))
-  await update($, projects, () => next)
-  await $.store.set('projetos', next)
-}
-
-/** As pastas que o Claude alcança além da pasta da sessão: as do settings e as do /add-dir. */
-async function accessDirs($: EngineInterface) {
-  const settings = await $.settings.read().catch(() => ({}))
-  return [...settingsDirs(settings), ...(await read($, sessionDirs))]
-}
-
-/** Acesso permanente: acrescenta as pastas sem acesso ao .claude/settings.local.json da pasta da sessão. */
-async function grantAlways($: EngineInterface, id: string) {
-  const t = DICT[await langNow($)]
-  const cwd = await $.session.cwd()
-  const p = (await read($, projects)).find(x => x.id === id)
-  if (p === undefined) return
-  const dirs = await accessDirs($)
-  const toAdd = p.folders.filter(f => !hasAccess(f, cwd, dirs))
-  if (toAdd.length === 0) return
-  const file = `${cwd.replace(/[\\/]+$/, '')}/.claude/settings.local.json`
-  try {
-    const current = (await $.fs.exists(file)) ? await $.fs.read(file) : ''
-    await $.fs.write(file, withDirectories(current, toAdd))
-    $.ui.toast(t.accessSaved(toAdd.length))
-  } catch (err) {
-    $.ui.toast(t.accessFailed(err instanceof Error ? err.message : String(err)))
-  }
-}
-
 /**
  * Uma pasta digitada: só entra se for uma pasta que existe, e entra pelo caminho
  * absoluto (um relativo mudaria de sentido em outra sessão). Caminho de rede o
@@ -474,10 +436,54 @@ async function checkedFolder($: EngineInterface, raw: string) {
   return undefined
 }
 
-async function addCwdProject($: EngineInterface) {
-  const cwd = await $.session.cwd()
-  if (currentProject(await read($, projects), cwd) !== undefined) return
-  await saveProjects($, l => addProject(l, baseFolderName(cwd), cwd))
+async function onWindows($: EngineInterface) {
+  return isWindows(await $.env.get('OS').catch(() => undefined))
+}
+
+/**
+ * O seletor de pasta do sistema. Devolve o caminho escolhido, undefined se a
+ * pessoa cancelou, ou null se nenhum seletor abriu (Linux sem zenity, por exemplo).
+ * A espera pela pessoa fica dentro do `$.process.run`, que não conta no tempo do hook.
+ */
+async function pickFolder($: EngineInterface, title: string, start: string): Promise<string | undefined | null> {
+  const win = await onWindows($)
+  const tries = win ? pickArgvs('windows') : [...pickArgvs('mac'), ...pickArgvs('linux')]
+  for (const argv of tries) {
+    try {
+      const r = await $.process.run(argv, { timeoutMs: 600_000, env: { HJ_TITLE: title, HJ_START: start } })
+      if (r.exitCode === 0) return pickedOf(r.stdout)
+      // osascript, zenity e kdialog saem com 1 no Cancelar; o PowerShell sai com 0 e nada escrito.
+      if (!win && r.exitCode === 1) return undefined
+    } catch {
+      // Sem esse programa aqui: tenta o próximo.
+    }
+  }
+  return null
+}
+
+/** Abre a pasta no Explorer, no Finder ou no gerenciador de arquivos do Linux. */
+async function openFolder($: EngineInterface, path: string) {
+  const win = await onWindows($)
+  // xdg-open antes do open: no Linux, `open` pode ser outro programa (openvt).
+  const tries = win ? [openArgv('windows', path)] : [openArgv('linux', path), openArgv('mac', path)]
+  for (const argv of tries) {
+    try {
+      const r = await $.process.run(argv, { timeoutMs: 15_000 })
+      // O explorer.exe sai com 1 mesmo quando abre a pasta.
+      if (win || r.exitCode === 0) return
+    } catch {
+      // Sem esse programa aqui: tenta o próximo.
+    }
+  }
+  $.ui.toast(DICT[await langNow($)].openFailed(path))
+}
+
+/** Onde o grimório deixa as decisões: a pasta de entrada do vault, ou o próprio vault se ela não existir. */
+async function openDecisions($: EngineInterface) {
+  if (paths.vault === '') return
+  const inbox = joinPath(paths.vault, paths.inbox)
+  const stat = await $.fs.stat(inbox).catch(() => undefined)
+  await openFolder($, stat?.kind === 'dir' ? inbox : paths.vault)
 }
 
 /** O 📖 do rodapé e o /grimorio: com inscrições pendentes, o cartão do Mago sobe acima do prompt. */
@@ -540,28 +546,40 @@ async function windowsCulture($: EngineInterface): Promise<string | undefined> {
 
 /** Linhas do painel por px de Svg (o desktop desenha uma linha de texto em ~19 px). */
 const PX_PER_ROW = 19
+const rowsOf = (px: number) => Math.ceil(px / PX_PER_ROW)
 
 /**
- * Quantas linhas a tela principal ocupa, pela altura conhecida de cada arte.
- * Estimativa com folga: serve só para decidir se o rodapé pode ficar preso.
+ * O que cabe no painel para o rodapé ficar preso no fim: as linhas fixas
+ * (objetivo, quests, títulos, rodapé) e quantos cartões do grupo e itens do
+ * inventário cabem no que sobra. Estimativa pela altura conhecida de cada arte;
+ * se nem o mínimo couber, o painel solta o rodapé e rola inteiro.
  */
-async function mainRows($: EngineInterface, cols: number) {
-  const rows = (px: number) => Math.ceil(px / PX_PER_ROW)
+async function paneFit($: EngineInterface, cols: number, bodyRows: number) {
   const c = await read($, campaign)
-  const q = questView(await read($, quests))
-  const members = await read($, party)
-  const inv = await read($, inventory)
-  const tab = await read($, partyTab)
+  const list = await read($, quests)
+  const q = questView(list)
+  const chapters = c?.chapters ?? []
   const width = Math.max(10, cols - 2)
   const goal = c === null ? 1 : Math.ceil(goalOf(c).length / width)
-  const objective = 1 + goal + rows(36) + (c === null ? 0 : 2)
-  const questsPx = q.current === undefined && q.done.length === 0 ? PX_PER_ROW : (q.done.length > 0 ? 28 : 0) + 48 + q.next.length * 24 + (q.mist > 0 ? 18 : 0)
-  const questRows = 1 + rows(questsPx) + (q.current === undefined && q.done.length === 0 ? 2 : 0)
-  const active = Math.min(3, members.filter(m => m.status === 'run').length)
-  const partyRows = rows((1 + active) * 62 + (members.length > active ? 30 : 0))
-  const invRows = 2 + rows(Math.max(1, Math.min(8, inv.items.length || (inv.recent ?? []).length)) * 24)
-  const footer = rows(24) + 1
-  return objective + questRows + 2 + (tab === 'grupo' ? partyRows : invRows) + footer + 4
+  const objective = 1 + goal + (c === null ? 0 : rowsOf(36) + 2)
+  const questsPx =
+    list.length > 0
+      ? (q.done.length > 0 ? 28 : 0) + (q.current ? 48 : 0) + q.next.length * 24 + (q.mist > 0 ? 18 : 0)
+      : chapters.length === 0
+        ? PX_PER_ROW
+        : (chapters.some(ch => ch.report !== undefined) ? 28 : 0) + (chapters.some(ch => ch.report === undefined) ? 48 : 0)
+  const footer = rowsOf(3 * 18) + 2
+  // Os títulos de cada bloco, a linha das abas e o espaço de uma linha entre os quatro blocos.
+  const fixed = objective + 1 + rowsOf(questsPx) + 2 + footer + 3
+  const room = (bodyRows - fixed) * PX_PER_ROW
+  const joined = (await read($, prefs)).partyJoined
+  const share = joined ? room : room / 2
+  // Inventário: a linha do branch e a da raridade, e 24 px por item.
+  const maxItems = Math.max(0, Math.min(8, Math.floor((share - 2 * PX_PER_ROW) / 24)))
+  // Grupo: o Clawd sempre, a fileira dos que voltaram e o "+N"; 62 px por cartão em ação.
+  const maxCards = Math.max(0, Math.min(3, Math.floor((share - 62 - 30 - PX_PER_ROW) / 62)))
+  const pinned = share >= (joined && (await read($, partyTab)) === 'inventario' ? 3 * PX_PER_ROW + 24 : 62)
+  return { pinned, maxItems: Math.max(1, maxItems), maxCards }
 }
 
 /** O ◈ da faixa: abre o painel se estiver fechado, fecha se estiver aberto. */
@@ -588,8 +606,33 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
 
   if (v === 'sobre') return aboutView(c, toMain)
   if (v === 'boasVindas') {
-    const cwd = await $.session.cwd()
-    return setupView(c, await read($, setup), langOption, await grimDests($), currentProject(await read($, projects), cwd) !== undefined, {
+    const say = (msg: string | undefined) => update($, setup, s => ({ ...s, msg }))
+    const saveVault = async (value: string) => {
+      const folder = await checkedFolder($, value)
+      if (folder === undefined) {
+        await say(c.t.folderMissing(value))
+        return
+      }
+      await say(undefined)
+      await $.config.set({ key: 'hero-journey.vaultPath', value: folder })
+    }
+    // A pasta de entrada é uma subpasta do vault que já existe. Vazia, volta ao padrão (Inbox).
+    const saveInbox = async (value: string) => {
+      const sub = value.trim().replace(/^"|"$/g, '')
+      if (!isSubfolder(sub)) {
+        await say(c.t.inboxInvalid(sub))
+        return
+      }
+      // A barra do próprio vault: no Windows, C:\\Vault\\Inbox, sem misturar com /.
+      const inboxPath = joinPath(paths.vault, sub)
+      if (sub !== '' && (await checkedFolder($, inboxPath)) === undefined) {
+        await say(c.t.folderMissing(inboxPath))
+        return
+      }
+      await say(undefined)
+      await $.config.set({ key: 'hero-journey.vaultInbox', value: sub })
+    }
+    return setupView(c, await read($, setup), langOption, await grimDests($), {
       lang: async value => {
         await $.config.set({ key: 'hero-journey.language', value })
       },
@@ -597,67 +640,30 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
         await update($, setup, s => ({ ...s, vault: yes ? ('sim' as const) : ('nao' as const), msg: undefined }))
         if (!yes) await $.config.set({ key: 'hero-journey.vaultPath', value: '' })
       },
-      path: async value => {
-        const folder = await checkedFolder($, value)
-        if (folder === undefined) {
-          await update($, setup, s => ({ ...s, msg: c.t.folderMissing(value) }))
-          return
-        }
-        await update($, setup, s => ({ ...s, msg: undefined }))
-        await $.config.set({ key: 'hero-journey.vaultPath', value: folder })
+      path: saveVault,
+      inbox: saveInbox,
+      // O seletor do sistema cai no mesmo caminho do campo: a pasta é conferida antes de salvar.
+      pickVault: async () => {
+        const picked = await pickFolder($, c.t.pickVaultTitle, paths.vault)
+        if (picked === null) await say(c.t.pickUnavailable)
+        else if (picked !== undefined) await saveVault(picked)
       },
-      // A pasta de entrada é uma subpasta do vault que já existe. Vazia, volta ao padrão (Inbox).
-      inbox: async value => {
-        const sub = value.trim().replace(/^"|"$/g, '')
-        if (!isSubfolder(sub)) {
-          await update($, setup, s => ({ ...s, msg: c.t.inboxInvalid(sub) }))
+      pickInbox: async () => {
+        const picked = await pickFolder($, c.t.pickInboxTitle, joinPath(paths.vault, paths.inbox))
+        if (picked === null) {
+          await say(c.t.pickUnavailable)
           return
         }
-        // A barra do próprio vault: no Windows, C:\\Vault\\Inbox, sem misturar com /.
-        const inboxPath = `${paths.vault}${paths.vault.includes('\\') ? '\\' : '/'}${sub}`
-        if (sub !== '' && (await checkedFolder($, inboxPath)) === undefined) {
-          await update($, setup, s => ({ ...s, msg: c.t.folderMissing(inboxPath) }))
-          return
-        }
-        await update($, setup, s => ({ ...s, msg: undefined }))
-        await $.config.set({ key: 'hero-journey.vaultInbox', value: sub })
+        if (picked === undefined) return
+        const sub = subfolderOf(paths.vault, picked)
+        if (sub === undefined) await say(c.t.pickOutside(picked))
+        else await saveInbox(sub)
       },
-      addProject: () => addCwdProject($),
+      openDecisions: () => openDecisions($),
       done: async () => {
         await $.store.set('setupDone', true)
         await update($, view, () => 'main' as const)
       },
-    })
-  }
-  if (v === 'projetos' && isOn(p, 'projetos')) {
-    const cwd = await $.session.cwd()
-    const list = await read($, projects)
-    return projectsView(c, list, cwd, await accessDirs($), currentProject(list, cwd), {
-      back: toMain,
-      addCwd: () => addCwdProject($),
-      create: name => saveProjects($, l => addProject(l, name)),
-      addFolder: async (id, value) => {
-        const folder = await checkedFolder($, value)
-        if (folder !== undefined) await saveProjects($, l => addFolder(l, id, folder))
-      },
-      removeFolder: (id, folder) => saveProjects($, l => removeFolder(l, id, folder)),
-      pin: id => saveProjects($, l => togglePin(l, id)),
-      confirming: await read($, confirmDel),
-      // ✕ pede confirmação: o primeiro clique arma, o segundo remove.
-      remove: async id => {
-        if ((await read($, confirmDel)) !== id) {
-          await update($, confirmDel, () => id)
-          return
-        }
-        await update($, confirmDel, () => '')
-        await saveProjects($, l => removeProject(l, id))
-      },
-      open: async id => {
-        const proj = (await read($, projects)).find(x => x.id === id)
-        if (proj !== undefined) await fillOrCopy($, openSessionPrompt(proj, await langNow($)))
-      },
-      accessNow: folder => fillOrCopy($, `/add-dir ${folder}`),
-      accessAlways: id => grantAlways($, id),
     })
   }
   if (v === 'config') {
@@ -669,9 +675,6 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
         $.ui.toast('deny' in r && r.deny !== undefined ? t.langDenied(r.deny) : t.langChanged)
       },
       skin: skin => savePrefs($, x => ({ ...x, skin })),
-      profile: profile => savePrefs($, x => withProfile(x, profile)),
-      toggle: section => savePrefs($, x => toggleSection(x, section)),
-      diary: mode => savePrefs($, x => ({ ...x, diary: mode })),
       module: async id => {
         await savePrefs($, x => toggleModule(x, id))
         // Desligar o painel no ⚙ fecha o painel aberto.
@@ -680,7 +683,6 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       guard: mode => savePrefs($, x => ({ ...x, guardMode: mode })),
       haiku: () => savePrefs($, x => ({ ...x, grimorioHaiku: !x.grimorioHaiku })),
       setup: () => update($, view, () => 'boasVindas' as const),
-      projects: () => update($, view, () => 'projetos' as const),
       about: () => update($, view, () => 'sobre' as const),
       compact: async () => {
         if (await moduleOn($, 'mochila')) await pushCard($, 'compactar')
@@ -693,23 +695,27 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
     seal: () => seal($),
     discard: () => discard($),
     haiku: p.grimorioHaiku ? () => rewriteWithHaiku($) : undefined,
+    openDecisions: () => openDecisions($),
   }
   if (v === 'grimorio' && isOn(p, 'grimorio')) {
     return grimPage(c, pending(all), all.filter(i => i.sealed !== undefined), await grimDests($), toMain, grimActions)
   }
 
-  const camp = await read($, campaign)
-
+  // O relógio de 1 minuto sobe o `tick`: ler aqui inscreve o painel e a contagem do reset anda.
+  await read($, tick)
   return mainView(
     c,
     {
       prefs: p,
-      campaign: camp,
+      campaign: await read($, campaign),
       quests: await read($, quests),
       party: await read($, party),
       inventory: await read($, inventory),
       partyTab: await read($, partyTab),
-      usage: await usageNow($),
+      // Antes da primeira leitura guardada, uma leitura só para este desenho (quem desenha não grava estado).
+      resources: (await read($, resources)) ?? (await $.session.usage().then(u => readingOf(u as unknown as UsageReading, null, false)).catch(() => null)),
+      now: Date.now(),
+      fit: await paneFit($, e.props.bodyColumns, e.props.scroll.bodyRows),
       working: await read($, working),
       pendingInscriptions: pending(all).length,
     },
@@ -728,14 +734,45 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       grimoire: async () => {
         if (!(await callMage($))) await update($, view, () => 'grimorio' as const)
       },
-      sideQuest: () => pushCard($, 'sideQuest'),
-      projects: () => update($, view, () => 'projetos' as const),
       config: () => update($, view, () => 'config' as const),
       about: () => update($, view, () => 'sobre' as const),
     },
   )
 }
 
+
+/**
+ * Carrega o que a sessão mostra: a língua, as preferências, a campanha guardada
+ * (numa sessão retomada), os recursos, o tema, o inventário e as tarefas. Roda no
+ * início e de novo depois de /clear, /resume e /branch, que zeram o `$.state`
+ * sem rodar o session.start outra vez.
+ */
+async function loadSession($: EngineInterface, restoreCampaign = true) {
+  // Cada etapa falha sozinha, sem levar as outras junto.
+  const settings = (await $.settings.read().catch(() => ({}))) as Record<string, unknown>
+  const system =
+    (await $.env.get('LC_ALL').catch(() => undefined)) ?? (await $.env.get('LANG').catch(() => undefined)) ?? (await windowsCulture($))
+  // O átomo guarda sempre a resolução do `auto`; a língua fixada vence em `langNow`.
+  // Assim, voltar de pt-BR para auto no ⚙ cai na língua certa sem esperar outro início.
+  await update($, lang, () => resolveLang('auto', settings.language, system, undefined))
+  langFromPrompt = settings.language === undefined && system === undefined
+
+  const stored = await $.store.get('prefs').catch(() => undefined)
+  await update($, prefs, () => migratePrefs(stored))
+
+  // Uma sessão retomada recupera a campanha guardada; o $.store guarda só as 20 mais recentes.
+  const id = await $.session.id().catch(() => '')
+  const mine = id === '' ? undefined : ((await $.store.get(storeKey(id)).catch(() => undefined)) as Campaign | undefined)
+  if (restoreCampaign && mine !== undefined && (await read($, campaign)) === null) await update($, campaign, () => mine)
+
+  // Na primeira vez, o painel abre nos Primeiros passos (língua e vault).
+  if ((await $.store.get('setupDone').catch(() => undefined)) !== true) await update($, view, () => 'boasVindas' as const)
+
+  await readResources($, true, false)
+  await refreshTheme($)
+  await refreshInventory($)
+  await refreshTasks($)
+}
 
 export const register: Register = (on, options) => {
   langOption = typeof options.language === 'string' ? options.language : 'auto'
@@ -752,27 +789,9 @@ export const register: Register = (on, options) => {
     interactive = e.isInteractive
 
     await $.command.register({ name: 'hero', description: 'Abre o Hero Journey / Opens Hero Journey' })
-    await $.command.register({ name: 'side-quest', description: 'Prepara uma side quest (sessão paralela) / Prepares a side quest' })
     await $.command.register({ name: 'grimorio', description: 'Abre o grimório / Opens the grimoire' })
-    await $.command.register({ name: 'projetos', description: 'Projetos e pastas com acesso / Projects and folders with access' })
 
-    // Cada etapa do início falha sozinha, sem levar as outras junto.
-    const settings = (await $.settings.read().catch(() => ({}))) as Record<string, unknown>
-    const system =
-      (await $.env.get('LC_ALL').catch(() => undefined)) ?? (await $.env.get('LANG').catch(() => undefined)) ?? (await windowsCulture($))
-    // O átomo guarda sempre a resolução do `auto`; a língua fixada vence em `langNow`.
-    // Assim, voltar de pt-BR para auto no ⚙ cai na língua certa sem esperar outro início.
-    await update($, lang, () => resolveLang('auto', settings.language, system, undefined))
-    langFromPrompt = settings.language === undefined && system === undefined
-
-    await update($, prefs, () => migratePrefs(undefined))
-    const stored = await $.store.get('prefs')
-    if (stored !== undefined) await update($, prefs, () => migratePrefs(stored))
-
-    // Uma sessão retomada recupera a campanha guardada; o $.store guarda só as 20 mais recentes.
-    const id = await $.session.id().catch(() => '')
-    const mine = id === '' ? undefined : ((await $.store.get(storeKey(id))) as Campaign | undefined)
-    if (mine !== undefined && (await read($, campaign)) === null) await update($, campaign, () => mine)
+    await loadSession($)
     const kept: { key: string; startedAt: number }[] = []
     for (const key of await $.store.keys()) {
       if (!key.startsWith('campanha:')) continue
@@ -781,15 +800,15 @@ export const register: Register = (on, options) => {
     }
     for (const key of prune(kept)) await $.store.delete(key)
 
-    await update($, projects, () => loadProjects(undefined))
-    const savedProjects = await $.store.get('projetos')
-    if (savedProjects !== undefined) await update($, projects, () => loadProjects(savedProjects))
-    // Na primeira vez, o painel abre nos Primeiros passos (língua, vault, projeto).
-    if ((await $.store.get('setupDone')) !== true) await update($, view, () => 'boasVindas' as const)
-
-    await refreshTheme($)
-    await refreshInventory($)
-    await refreshTasks($)
+    // A contagem do reset anda: a cada minuto, se alguma janela tem reset pela
+    // frente, o `tick` sobe e redesenha quem lê. Um relógio só, mesmo num reload.
+    clock?.cancel()
+    clock = $.clock.every(60_000, () => {
+      void (async () => {
+        const r = await read($, resources)
+        if (r?.windows.some(w => w.resetsAt !== undefined) === true) await update($, tick, n => n + 1)
+      })().catch(() => {})
+    })
     // Aberto sem pedido, o painel só aparece em tela larga (144 colunas).
     if (await moduleOn($, 'painel')) await $.ui.open({ id: PANE, title: PANE_TITLE })
     return ran
@@ -807,13 +826,6 @@ export const register: Register = (on, options) => {
     return opened.isPlaced ? {} : { text: t.paneNotPlaced(String(opened.reason)) }
   })
 
-  on('command.run', { command: 'side-quest' }, async $ => {
-    const t = DICT[await langNow($)]
-    if (!(await moduleOn($, 'sideQuest'))) return { text: t.off(t.module.sideQuest[0]) }
-    await pushCard($, 'sideQuest')
-    return { text: `⇄ ${t.sqTitle}` }
-  })
-
   on('command.run', { command: 'grimorio' }, async $ => {
     const t = DICT[await langNow($)]
     if (!(await moduleOn($, 'grimorio'))) return { text: t.off(t.module.grimorio[0]) }
@@ -825,20 +837,21 @@ export const register: Register = (on, options) => {
     return { text: `📖 ${t.grimTitle}` }
   })
 
-  on('command.run', { command: 'projetos' }, async $ => {
-    const t = DICT[await langNow($)]
-    if (!(await moduleOn($, 'projetos'))) return { text: t.off(t.module.projetos[0]) }
-    if (!(await moduleOn($, 'painel'))) await savePrefs($, x => ({ ...x, modules: { ...x.modules, painel: true } }))
-    await update($, view, () => 'projetos' as const)
-    await $.ui.open({ id: PANE, title: PANE_TITLE, focus: true })
-    return { text: t.projects }
-  })
+  // /clear, /resume e /branch zeram o $.state e não rodam o session.start de novo:
+  // sem isto, a HUD voltava para o inglês e para as preferências padrão.
+  on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
+    const ran = await next(e)
+    bagWarned = false
+    // Depois de um /clear a conversa é nova: a campanha antiga não volta. /resume e /branch a recuperam.
+    await loadSession($, (e as { source?: string }).source !== 'clear')
+    return ran
+  }).catch(($, e, next) => next(e))
 
-  // Uma pasta liberada pelo /add-dir conta como acesso nesta sessão.
-  on('classic.DirectoryAdded', async ($, e, next) => {
-    const dir = e.directory
-    await update($, sessionDirs, list => (list.some(d => isInside(dir, d)) ? list : [...list, dir]))
-    return next(e)
+  // Um /compact (também o automático) esvazia a mochila sem fim de turno: lê de novo.
+  on('session.compact', async ($, e, next) => {
+    const ran = await next(e)
+    if ((e as { agentId?: string }).agentId === undefined && 'messages' in (ran as object)) await readResources($, true, false)
+    return ran
   }).catch(($, e, next) => next(e))
 
   // O título que o app deu à sessão ("Claude HUD RPG handoff") é o melhor objetivo curto.
@@ -873,8 +886,6 @@ export const register: Register = (on, options) => {
         await update($, lang, () => (looksPortuguese(text) ? 'pt' : 'en'))
       }
       await saveCampaign($, onPrompt(await read($, campaign), await $.session.id(), text, Date.now()))
-      // Durante a missão o relatório fica recolhido; ele abre sozinho no fim.
-      await update($, reportOpen, () => false)
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -940,11 +951,8 @@ export const register: Register = (on, options) => {
       const file = typeof input.file_path === 'string' ? input.file_path : typeof input.notebook_path === 'string' ? input.notebook_path : undefined
       await update($, working, () => ({ tool: e.tool, cls, summary, file }))
       const turn = await read($, turnId)
-      const open = await read($, expanded)
-      await update($, diary, list => {
-        const entry: DiaryEntry = { id, tool: e.tool, cls, summary, turnId: turn, group: groupFor(list, cls, turn, id, open), status: 'run', at: Date.now() }
-        return [...list, entry].slice(-300)
-      })
+      const entry: DiaryEntry = { id, tool: e.tool, cls, summary, turnId: turn, status: 'run', at: Date.now() }
+      await update($, diary, list => [...list, entry].slice(-300))
     }
     if (e.tool === 'TodoWrite') {
       const fromTodos = questsFromTodos(input.todos)
@@ -1009,7 +1017,7 @@ export const register: Register = (on, options) => {
       const agentId = typeof result?.agentId === 'string' ? result.agentId : undefined
       const background = input.run_in_background === true && !failed
       await update($, party, list =>
-        list.map(m => (m.id === id ? { ...m, agentId: agentId ?? m.agentId, status: failed ? 'err' : background ? 'run' : 'ok' } : m)),
+        list.map((m): Member => (m.id === id ? { ...m, agentId: agentId ?? m.agentId, status: failed ? 'err' : background ? 'run' : 'ok' } : m)),
       )
     }
     // Só depois de uma escrita que deu certo; o resto (Bash incluído) espera o fim do turno.
@@ -1063,44 +1071,45 @@ export const register: Register = (on, options) => {
     return { deny: `${DICT.pt.denyFailed} / ${DICT.en.denyFailed}` }
   })
 
-  // ---------- Fim do turno: relatório, comemoração, grimório ----------
+  // ---------- Fim do turno: capítulo, recibo, recursos e grimório ----------
 
   on('turn.complete', async ($, e, next) => {
     const ran = await next(e)
     if (e.agentId !== undefined) {
       const agentId = e.agentId
-      await update($, party, list => list.map(m => (m.agentId === agentId ? { ...m, status: e.reason === 'answer' ? 'ok' : 'err' } : m)))
+      await update($, party, list => list.map((m): Member => (m.agentId === agentId ? { ...m, status: e.reason === 'answer' ? 'ok' : 'err' } : m)))
       return ran
     }
     await update($, working, () => null)
     await refreshInventory($)
     await refreshTasks($)
+    // A leitura do fim do turno entra no histórico do peso da mochila.
+    await readResources($, true, true)
     const p = await prefsNow($)
     const l = await langNow($)
     const answer = e.answer ?? ''
     const said = turnPrompts.get(e.turnId) ?? ''
 
-    // O relatório é do capítulo deste turno (casado pelo turnId): uma mensagem
-    // digitada no meio do turno não rouba o relatório, e um turno de continuação
-    // não sobrescreve um relatório já aprovado.
+    // O que o turno fez, do diário dele. Fecha o capítulo deste turno (casado pelo
+    // turnId): uma mensagem digitada no meio do turno não rouba o fechamento, e um
+    // turno de continuação não reabre um capítulo fechado; ele só ganha o recibo.
+    const entries = (await read($, diary)).filter(x => x.turnId === e.turnId)
+    const refused = (await read($, refusals)).filter(x => x.turnId === e.turnId).map(x => x.text)
     const c = await read($, campaign)
     const ch = chapterOf(c, e.turnId)
+    const report = buildReport(ch ?? { n: 0, prompt: '' }, entries, answer, e.durationMs, e.reason, refused)
     if (c !== null && ch !== undefined && ch.report === undefined) {
-      const entries = (await read($, diary)).filter(x => x.turnId === e.turnId)
-      const refused = (await read($, refusals)).filter(x => x.turnId === e.turnId).map(x => x.text)
-      const report = buildReport(ch, entries, answer, e.durationMs, e.reason, refused)
       const closed0 = closeChapter(c, report)
       // Sem título da sessão, a Missão da 1ª resposta vira o objetivo curto.
       const closed = closed0.short === undefined && ch.n === 1 && report.mission !== undefined ? { ...closed0, short: report.mission, shortFrom: 'missao' as const } : closed0
       await saveCampaign($, closed)
-      await update($, reportAt, () => reports(closed).length - 1)
-      await update($, reportOpen, () => isOn(p, 'campanha'))
-      if (isOn(p, 'comemoracao')) {
-        const text = celebrate(report, l)
-        if (text !== undefined) $.ui.toast(text)
-      }
     }
     await update($, refusals, list => list.filter(x => x.turnId !== e.turnId))
+    const lead = leadOf(entries)
+    // Só onde algo desenha: num `claude -p` (sem superfície) o texto do turno é a resposta e fica intacto.
+    // Não usa o `isInteractive`: ele é falso também no app desktop, que hospeda a sessão pelo SDK.
+    const drawn = (await $.session.surfaces().catch(() => [])).length > 0
+    const receipt = isOn(p, 'recibo') && drawn ? receiptOf(report, lead === undefined ? undefined : DICT[l].className[lead], l) : undefined
 
     // O grimório só sugere; o Haiku, se ligado no ⚙, roda no clique do botão do cartão.
     if (isOn(p, 'grimorio') && e.reason === 'answer') {
@@ -1114,28 +1123,24 @@ export const register: Register = (on, options) => {
       }
     }
     $.ui.invalidate('ui.render')
-    return ran
+    // O recibo: um texto diferente da resposta aparece embaixo dela, no chat.
+    return receipt === undefined ? ran : { ...ran, text: receipt }
   })
 
-  // ---------- Mochila: o contexto enche ----------
+  // ---------- Recursos: a mochila enche, a mana e o vigor baixam ----------
 
+  // A cada resposta o motor mede de novo; o detalhamento (o ponto de compactação)
+  // fica o da última leitura do fim do turno.
   on('session.measure', async ($, e, next) => {
     const ran = await next(e)
-    if (await moduleOn($, 'mochila')) {
-      const step = shouldWarn(e.context.percent ?? 0, warned)
-      if (step === 'warn') {
-        warned = true
-        await pushCard($, 'compactar')
-      } else if (step === 'reset') warned = false
-    }
-    $.ui.invalidate('ui.render')
+    await takeReading($, { context: e.context, rateLimits: e.rateLimits }, false)
     return ran
-  })
+  }).catch(($, e, next) => next(e))
 
   // ---------- Desenho ----------
 
   // O painel usa o fundo do tema da pessoa. Na tela principal ele ocupa a altura
-  // toda, para o rodapé ficar preso embaixo.
+  // toda, para os recursos ficarem presos no fim.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const body = await renderPane($, e)
     if (e.surface !== 'desktop') return body
@@ -1143,10 +1148,10 @@ export const register: Register = (on, options) => {
     // A tela principal (ou a que cai nela com o módulo desligado) ocupa a altura toda.
     const v = await read($, view)
     const p = await prefsNow($)
-    const main = v === 'main' || (v === 'projetos' && !isOn(p, 'projetos')) || (v === 'grimorio' && !isOn(p, 'grimorio'))
-    // O motor não tem rolagem dentro do painel: o rodapé só fica preso quando tudo cabe.
-    // Se não couber, o painel rola inteiro e nada fica escondido.
-    const full = main && (await mainRows($, e.props.bodyColumns)) <= e.props.scroll.bodyRows
+    const main = v === 'main' || (v === 'grimorio' && !isOn(p, 'grimorio'))
+    // O motor não tem rolagem dentro do painel: o meio corta cartões e itens para
+    // caber, e o rodapé fica preso. Só se nem o mínimo couber o painel rola inteiro.
+    const full = main && (await paneFit($, e.props.bodyColumns, e.props.scroll.bodyRows)).pinned
     return (
       <Box flexDirection="column" paddingX={1} height={full ? e.props.scroll.bodyRows : undefined}>
         {body}
@@ -1160,12 +1165,14 @@ export const register: Register = (on, options) => {
     const p = await prefsNow($)
     const now = await read($, working)
     const queue = (await read($, cards)).filter(card =>
-      card === 'grimorio' ? isOn(p, 'grimorio') : card === 'compactar' ? isOn(p, 'mochila') : isOn(p, 'sideQuest'),
+      card === 'grimorio' ? isOn(p, 'grimorio') : isOn(p, 'mochila'),
     )
     const camp = await read($, campaign)
     // A faixa fica enquanto houver campanha (o objetivo em miniatura); o pet age só durante o turno.
     const away = (await read($, party)).filter(m => m.status === 'run')
-    const showBand = isOn(p, 'faixa') && ((e.props.isWorking && now !== null) || camp !== null || away.length > 0)
+    // O selo de recurso só aparece em alerta: a mochila transbordando ou a mana/vigor no fim.
+    const alert = alertOf(await read($, resources), Date.now())
+    const showBand = isOn(p, 'faixa') && ((e.props.isWorking && now !== null) || camp !== null || away.length > 0 || alert !== undefined)
     const card = queue[0]
     if (!showBand && card === undefined) return next(e)
 
@@ -1176,9 +1183,10 @@ export const register: Register = (on, options) => {
 
     let cardTree: RenderElement | null = null
     if (card === 'compactar') {
-      const usage = await usageNow($)
+      const r = await read($, resources)
+      const bag = r === null ? undefined : bagOf(r)
       const instruction = compactInstruction(await langNow($), camp, await read($, quests))
-      cardTree = compactCard(c, usage.context === undefined ? `${COMPACT_AT}%+` : `${Math.round(usage.context)}%`, instruction, e.props.isWorking, {
+      cardTree = compactCard(c, bag?.percent === undefined ? `${COMPACT_AT}%+` : `${bag.percent}%`, instruction, e.props.isWorking, {
         fill: async () => {
           if (await fillOrCopy($, `/compact ${instruction}`)) await dropCard($, 'compactar')
         },
@@ -1192,67 +1200,32 @@ export const register: Register = (on, options) => {
         discard: () => discard($),
         haiku: p.grimorioHaiku ? () => rewriteWithHaiku($) : undefined,
       })
-    } else if (card === 'sideQuest') {
-      const brief = await sideQuestText($)
-      const text = sideQuestPrompt(brief, await langNow($))
-      cardTree = sideQuestCard(c, brief, {
-        fill: async () => {
-          await fillOrCopy($, text)
-          await dropCard($, 'sideQuest')
-        },
-        copy: async () => {
-          await $.ui.copy({ text })
-          $.ui.toast(c.t.copied)
-        },
-        dismiss: () => dropCard($, 'sideQuest'),
-      })
     }
 
     return (
       <Box flexDirection="column" gap={1}>
-        {showBand && bandView(c, e.props.isWorking ? now : null, await read($, quests), camp, () => togglePane($), away, await read($, intent))}
+        {showBand &&
+          bandView(c, e.props.isWorking ? now : null, await read($, quests), camp, () => togglePane($), away, await read($, intent), alert === undefined ? undefined : c.t.bandAlert[alert.kind](alert.percent))}
         {cardTree}
         {below}
       </Box>
     )
   })
 
-  // Diário de bordo: o Clawd e o trilho em cada linha; grupos recolhidos.
+  // Diário de bordo: o Clawd, o trilho e o resultado em cada linha, durante o turno.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     if (e.surface !== 'desktop') return next(e)
     const p = await prefsNow($)
     if (!isOn(p, 'diario')) return next(e)
 
     const list = await read($, diary)
-    const gv = groupView(list, e.props.tool_use_id, p.diary, await read($, expanded))
     const ui = $.ui.resolve(e)
     const c: Ctx = { ...(await ctxOf($, e.surface, e.viewport?.columns ?? 80)), ui }
-
-    if (gv.kind === 'hidden') {
-      const { Box } = ui
-      return <Box />
-    }
-    if (gv.kind === 'head') {
-      const group = gv.entries[0]?.group ?? ''
-      return groupHeadView(c, gv.entries, () => update($, expanded, ids => [...ids, group]))
-    }
-
     const row = await next(e)
     const entry = list.find(x => x.id === e.props.tool_use_id)
     const input = (e.props.input ?? {}) as Record<string, unknown>
     const status = e.props.isRunning ? 'run' : e.props.isErrored || e.props.isInterrupted ? 'err' : 'ok'
     return rowView(c, entry ?? { cls: classOf(e.props.tool, input), status, summary: summaryOf(e.props.tool, input) }, row)
-  })
-
-  // A saída das linhas de um grupo recolhido também some (o ToolResult é outro componente).
-  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
-    if (e.surface !== 'desktop') return next(e)
-    const p = await prefsNow($)
-    if (!isOn(p, 'diario')) return next(e)
-    const gv = groupView(await read($, diary), e.props.tool_use_id, p.diary, await read($, expanded))
-    if (gv.kind === 'single') return next(e)
-    const { Box } = $.ui.resolve(e)
-    return <Box />
   })
 
   // Guarda: a linha de arquivos (diálogo) ou o Guardião do Cofre (chefe) acima do diálogo do Claude,

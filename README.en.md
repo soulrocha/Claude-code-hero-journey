@@ -7,11 +7,11 @@
 
 **A cozy RPG HUD for Claude Code: glance and know what Claude is doing, and never lose the objective.**
 
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.293%2B-d97757?logo=anthropic&logoColor=white)](https://code.claude.com/docs/en/plugins/mods/overview)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.295%2B-d97757?logo=anthropic&logoColor=white)](https://code.claude.com/docs/en/plugins/mods/overview)
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
-[![Tests](https://img.shields.io/badge/tests-90%20passing-8fc46a)](#%EF%B8%8F-development)
+[![Tests](https://img.shields.io/badge/tests-100%20passing-8fc46a)](#%EF%B8%8F-development)
 [![License](https://img.shields.io/badge/license-MIT-d9b26a)](LICENSE)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20desktop%20app-e6b450)](#%EF%B8%8F-status-and-roadmap)
 
@@ -41,26 +41,24 @@
 Long Claude Code sessions turn into a wall of text: lots of tools running, little sense of the whole. **Hero Journey** turns the session into an RPG campaign without touching Claude's classic output.
 
 - **Glance and know.** Each action gets its class (the Mage researches, the Artificer codes, the Paladin tests), with a mascot, a color and a short summary.
-- **Never lose the objective.** The campaign objective, the chapter quests and each mission report stay pinned in the pane.
-- **Read less.** Runs of actions collapse into one line ("Artificer · 2 actions · ✓ new · ✓ +42 −8"), and the report keeps only what matters.
+- **Never lose the objective.** The campaign objective, the steps done and the quests left stay pinned in the pane, and in miniature in the band above the prompt.
+- **Read less.** Runs of actions by the same class collapse into one line ("Artificer · 2 actions · ✓ new · ✓ +42 −8") while the turn runs.
 - **Turn lessons into achievements.** The grimoire stores technical decisions, measurable wins and AI-work preferences where they belong, always on your click.
 
 ## ✨ Features
 
-There are **10 modules**, each one toggled in the pane's ⚙.
+There are **8 modules**, each one toggled in the pane's ⚙.
 
 | | Module | What it does |
 |:-:|---|---|
-| 📜 | **Logbook** | Puts the class mascot, a colored rail and a result chip on every tool row. Runs of the same class collapse into one group, and **Split ›** opens only that group. |
-| 🎯 | **Band above the prompt** | While Claude works, shows the 90 px Clawd with its animated tool, the class, and the intent Claude wrote before calling tools. Hides when the turn ends. |
-| 🗺️ | **Pane** (`/hero`) | Shows the objective, chapter quests, subagent party and file inventory, the report, and a footer with Backpack (context), Mana (5-hour window) and Vigor (weekly). |
-| 📖 | **Campaign and report** | Treats the session as a campaign; each message opens a chapter. Each chapter ends with a report holding the timeline, result and risk, plus **✓ Approve** and **✎ Adjust**. |
+| 📜 | **Logbook** | Puts the class mascot, a colored rail and a result mark on every tool row while the turn runs. When the turn ends, the app itself folds the rows into "Ran N actions", and the receipt stays. |
+| 🎯 | **Band above the prompt** | One line: during the turn, the class Clawd and the sentence where Claude said what it is about to do; outside it, the objective trail and the subagents "on expedition". A badge shows up only when a resource runs low (🎒 Backpack 92%, 💧 Mana 8%). The ◈ opens and closes the pane. |
+| 🗺️ | **Pane** (`/hero`) | Shows the objective with its step bar, the chapter quests, the subagent party or the file inventory, and, pinned to the bottom, the buttons and the resources. |
+| 📖 | **Campaign** | Treats the session as a campaign: the first message sets the objective, and each message opens a chapter that closes when the turn ends. It feeds the objective bar and the receipt. Haiku can recalibrate the objective, on your click. |
+| 🧾 | **Turn receipt** | One line under the answer: who acted most, how many actions, +/−, new files, failures and the time. When the turn completes its mission without failures, the mission leads the line: "🦀 ✦ Mission complete: …". Zero tokens. |
 | 🛡️ | **Protected-file guard** | Asks before Claude touches `.env`, pipelines or production `appsettings`, terminal commands included. Three modes, including the **boss encounter** with the Vault Guardian. Fails closed. |
-| 🎒 | **Backpack** | Past 85% context, sends the `/compact` instruction to your prompt, or compacts right away while Claude is idle. |
+| 🎒 | **Resources: Backpack, Mana and Vigor** | At the bottom of the pane, one row each. The **Backpack** measures the context up to the point where Claude Code compacts on its own, names its state (Light, Loaded, Heavy, Overflowing) and, on hover, shows last turn's weight and what is taking up room. **Mana** (5-hour window) and **Vigor** (weekly) show what is left, a live countdown to the reset, the spending pace, and warn once when they reach 10%. Past 85% of the backpack, the card sends `/compact` to your prompt or compacts right away. |
 | ✒️ | **Grimoire** | Finds the turn's decisions, wins and preferences, suggests where to store each one (vault, career, ai-memory; CLAUDE.md and AGENTS.md only if you tick them), and writes only when you click **Seal**. |
-| ⇄ | **Side quest** | Starts a detour in a parallel session: the request goes to your prompt with the campaign summary attached. |
-| 🗂 | **Projects** (`/projetos`) | Projects with several folders, pinned ones on top, and the current folder's project highlighted. Shows which folders Claude can reach (✓/✗) and grants access for the session (`/add-dir`) or for good (`.claude/settings.local.json`), with one click. |
-| 🎉 | **Celebration** | The Clawd cheers when a mission ends without failures. |
 
 Beyond the modules, the HUD speaks **English and Portuguese** (it follows Claude's language, or you pin one) and has **two skins**: **Epic** (a WoW-style quest log with ◆ ornaments and "!" and "?" marks) and **Sober**. Both follow the light or dark theme.
 
@@ -69,7 +67,7 @@ Beyond the modules, the HUD speaks **English and Portuguese** (it follows Claude
 <table>
   <tr>
     <td width="50%"><img alt="Boss encounter: the Vault Guardian shows the protected files' diffs" src="docs/assets/telas/chefe.webp"><br><sub><b>Vault Guardian.</b> The protected files' diffs side by side, with Open the gate, Negotiate and Retreat.</sub></td>
-    <td width="50%"><img alt="Mission end: grouped logbook, grimoire card and the open mission report" src="docs/assets/telas/fim.webp"><br><sub><b>Mission end.</b> The grouped logbook, the grimoire card and the report with its timeline.</sub></td>
+    <td width="50%"><img alt="Mission end: grouped logbook, grimoire card and the open mission report" src="docs/assets/telas/fim.webp"><br><sub><b>Mission end.</b> The grouped logbook and the grimoire card. The report on this screen came from the prototype and is no longer in the pane.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img alt="Protection dialog with the file line" src="docs/assets/telas/dialogo.webp"><br><sub><b>Default protection.</b> Claude's own dialog, with the files and their +/− on top.</sub></td>
@@ -111,7 +109,7 @@ In the inventory, each file gets a rarity by its impact:
 ## 🚀 Install
 
 > [!NOTE]
-> Requires the **Claude Code desktop app** with mods (function hooks) enabled. The tests run on engine 2.1.293; older versions may refuse parts of the screen.
+> Requires the **Claude Code desktop app** with mods (function hooks) enabled. The tests run on engine 2.1.295; older versions may refuse parts of the screen.
 
 **On Windows, from a local clone** (PowerShell; runs the tests before installing):
 
@@ -150,10 +148,12 @@ ai-memory needs no folder: the grimoire writes to it over MCP, when that MCP is 
 
 **First steps.** The first time the pane opens, it asks the same questions as a short wizard:
 - the language;
-- whether you use a vault, where it is and which inbox folder to use (folders are checked before saving);
-- whether to add the current folder as a project.
+- whether you use a vault, where it is and which inbox folder to use: type the path or use **📁 Choose folder**, which opens the system's folder picker (folders are checked before saving);
+- ai-memory, for memory across sessions.
 
-The same screen recommends what is missing: with no vault it suggests [Obsidian](https://obsidian.md); with no ai-memory MCP it suggests [ai-memory](https://github.com/akitaonrails/ai-memory). When it is connected, it shows "✓ ai-memory connected".
+Once the vault is saved, **📂 Open the decisions folder** opens the folder where the grimoire drops decisions in Explorer (or Finder). The same button sits on the grimoire page.
+
+The same screen recommends what is missing: with no vault it suggests [Obsidian](https://obsidian.md); with no ai-memory MCP it suggests [ai-memory](https://github.com/akitaonrails/ai-memory). When it is connected, it shows "✓ ai-memory connected" and invites you to support Fabio Akita with a star on the repository.
 
 You can get back to it from ⚙ → ✦ First steps.
 
@@ -185,25 +185,23 @@ You can get back to it from ⚙ → ✦ First steps.
 **In the pane's ⚙** (saved across sessions):
 - modules and language;
 - skin;
-- pane profile (Full, Focus, Minimal or Custom) and the sections it shows;
-- logbook grouped or separate;
 - protection mode;
 - the grimoire's Haiku button;
 - First steps.
 
 > [!NOTE]
-> **What about the app's sidebar?** The mod API cannot change the native sidebar: it is not among the components a mod can redraw, and there is no call to rename or group sessions. That's why projects, their folders and the access to them live in the HUD's pane (🗂 in the footer, or `/projetos`).
+> **What about the app's sidebar?** The mod API cannot change the native sidebar: it is not among the components a mod can redraw, and there is no call to rename or group sessions.
 
 Each module's details, known limits and code layout are in the [mod's README](mods/hero-journey/README.md), which is in Portuguese with an English summary.
 
 ## 🔒 Tokens and privacy
 
-- **Drawing, git reads, timers and groups never call the model.** Only two things spend tokens, and only on your click: **Compact now** (backpack) and **✦ Summarize with Haiku** (grimoire, an optional button that is off by default).
+- **Drawing, git reads, timers and groups never call the model.** Only three things spend tokens, and only on your click: **Compact now** (backpack), **✦ Recalibrate objective** (pane, through Haiku) and **✦ Summarize with Haiku** (grimoire, an optional button that is off by default).
 - **The grimoire writes nothing until you click Seal.** CLAUDE.md and AGENTS.md become standing instructions for Claude, so they come **unticked**: they get something only if you tick them. Even then they get a single line, with no backticks or tags. Text that mentions the vault or a personal path is left out.
 - **A note never overwrites a note.** If the name is taken, the new one gets `-2`, `-3`… An inscription that was written nowhere stays pending, with the reason in the notice.
 - **With no vault and no ai-memory,** the grimoire offers only CLAUDE.md and AGENTS.md, unticked, and points to where both extensions are set up.
 - **The guard fails closed.** If the check breaks, the edit is blocked.
-- **Folder access only on click.** The Projects module writes `.claude/settings.local.json` only when you ask, and only adds folders, never removes. If the file is not valid JSON, it is left alone.
+- **Resources and receipt cost nothing.** The numbers come from Claude Code itself (`$.session.usage()`), and the backpack's breakdown is estimated locally, with no token-count call.
 
 ## 🧠 Long-term memory with ai-memory
 
@@ -241,16 +239,16 @@ flowchart LR
     P["painel (pane)"]
     C["campanha (campaign)"]
     G["guarda (guard)"]
-    PR["projetos (projects)"]
     M["mochila (backpack)"]
     GR["grimorio (grimoire)"]
-    SQ["side-quest"]
+    RB["recibo (receipt)"]
   end
   subgraph Screens["What you see"]
     T1["ToolUse and ToolResult"]
     T2["AbovePrompt"]
     T3["Pane"]
     T4["AskUserQuestion"]
+    T5["line under the answer"]
   end
   E1 --> R
   E2 --> R
@@ -261,22 +259,20 @@ flowchart LR
   R --> P
   R --> C
   R --> G
-  R --> PR
   R --> M
   R --> GR
-  R --> SQ
+  R --> RB
   D --> T1
   F --> T2
   M --> T2
   GR --> T2
-  SQ --> T2
   P --> T3
   C --> T3
-  PR --> T3
+  RB --> T5
   G --> T4
 ```
 
-- **One file wires everything.** All code that uses `$` (the engine interface) lives in `register.tsx`, because the engine does not follow `$` across imports.
+- **One file wires everything.** All code that uses `$` (the engine interface) lives in `register.tsx`, because the engine refuses `$` passed to an imported function ("$ is followed only into a function declared in this same file"). Checked on engine 2.1.295.
 - **Each module has its own folder:** pure logic in `<module>.ts`, the screen in `view.tsx`.
 - **The art is SVG text,** animated with CSS and SMIL and with no script, which is what the desktop's interactive `Svg` draws.
 
@@ -291,7 +287,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 bun run scripts/gerar-assets.ts
 ```
 
-There are 85 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The animated demo and the screens were recorded from the reference prototype, which is not part of this repository.
+There are 100 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The animated demo and the screens were recorded from the reference prototype, which is not part of this repository.
 
 Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Follow the [security policy](SECURITY.md). Each release's changes are in the [CHANGELOG](CHANGELOG.md).
 
@@ -303,13 +299,19 @@ Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Foll
 - [x] Design: prototypes v1–v6 and final, reviewed by UX and adversarial QA
 - [x] Phase 0: spike probing the 12 items to validate
 - [x] Phase 1: logbook, band and pane, with zero tokens
-- [x] Phase 2: campaign, mission report and protected-file guard
-- [x] Phase 3: grimoire, backpack with compaction, side quest and celebration
+- [x] Phase 2: campaign and protected-file guard (the mission report left the pane in the 2026-10-09 review)
+- [x] Phase 3: grimoire, backpack with compaction, side quest and celebration (side quest and celebration left in the 2026-10-10 simplification)
 - [x] Portuguese and English, toggleable modules, adversarial QA with fixes
-- [x] Projects with several folders and access, First steps, MIT license
+- [x] First steps, MIT license
 - [x] PR review fixes: terminal guard, inventory with `-z`, no-overwrite grimoire and ai-memory over MCP
+- [x] Simplification (2026-10-10, [scope, in Portuguese](docs/escopo.md)): Projects, Side quest, logbook grouping, pane profiles and the report code are gone; the three art files became one
+- [x] Better resources: Backpack measured against the compaction point, state in words, last-turn weight (in the tooltip), live countdowns, warnings and pace for Mana and Vigor, footer pinned to the bottom
+- [x] Turn receipt in place of the report and the celebration, with zero tokens
+- [x] The HUD comes back right after `/clear`, `/resume` and `/branch`
+- [x] Vault with the system folder picker and a shortcut to the decisions folder
 - [ ] Full manual test in the desktop app, and adjustments from it
 - [ ] First stable release
+- [ ] "Your turn" in the band, a class spinner and diffs in the inventory
 - [ ] Claude Code CLI (terminal) support, after the desktop version
 
 ## 🙏 Credits and references
@@ -327,7 +329,7 @@ The HUD's code is its own, but it stands on others' work.
 | [git-sidebar](https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/ui/git-sidebar) | Shell-free git for the inventory |
 | [session-time-machine](https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/productivity/session-time-machine) | The session timeline |
 
-**Mods that pair well with the HUD.** Install them from their authors' repositories: [secret-redactor](https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/security/secret-redactor) and [prompt-cache-control](https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/observability/prompt-cache-control).
+**Mods that pair well with the HUD.** Install them from their authors' repositories: [secret-redactor](https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/security/secret-redactor) and [prompt-cache-control](https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/observability/prompt-cache-control). To hand a long session off to a fresh one, [ctx-handoff](https://github.com/cablate/ctx-handoff-mod) and [claude-auto-handoff](https://github.com/alexknowshtml/claude-auto-handoff) do what the side quest did.
 
 **References**
 - Claude Code mods docs: [code.claude.com/docs/en/plugins/mods/overview](https://code.claude.com/docs/en/plugins/mods/overview)

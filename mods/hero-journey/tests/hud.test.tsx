@@ -64,8 +64,8 @@ for (const [option, mochila, about] of [
     await ui.press({ key: 'config' })
     await ui.press({ key: 'lang-en' })
     expect(asked).toBe('en')
-    await ui.press({ key: 'diary-separado' })
-    expect((await ui.find({ key: 'diary-separado' }))?.text).toContain('◉')
+    await ui.press({ key: 'skin-sobrio' })
+    expect((await ui.find({ key: 'skin-sobrio' }))?.text).toContain('◉')
 
     await ui.press({ key: 'back' })
     await ui.press({ key: 'config' })
@@ -94,7 +94,7 @@ test('no terminal o painel desenha só texto', { options: { language: 'pt-BR' } 
   await ui.unmount()
 })
 
-test('duas edições seguidas viram um grupo; Separar abre só aquele', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('cada edição ganha o pet e o selo; nada se esconde (o app já agrupa no fim do turno)', { options: { language: 'pt-BR' } }, async ($, on) => {
   on('tool.call', { tool: 'Edit' }, edited)
   on('ui.render', { component: 'ToolUse' }, engineRow)
   const call = (id: string) =>
@@ -111,17 +111,14 @@ test('duas edições seguidas viram um grupo; Separar abre só aquele', { option
       props: { tool_use_id: id, tool: 'Edit', input: { file_path: '/repo/src/app.ts' }, isRunning: false, isErrored: false, isInterrupted: false },
     })
 
-  const head = await row('e1')
-  expect(await head.find({ text: /2 ações · \+4 −2/ })).toBeDefined()
-  const hidden = await row('e2')
-  expect(await hidden.find({ text: /linha do motor/ })).toBeUndefined()
-
-  await head.press({ key: 'split-e1' })
-  await head.redraw({ tool_use_id: 'e1', tool: 'Edit', input: {}, isRunning: false, isErrored: false, isInterrupted: false })
-  expect(await head.find({ text: /linha do motor/ })).toBeDefined()
-  expect(await head.find({ type: 'Svg' })).toBeDefined()
-  await head.unmount()
-  await hidden.unmount()
+  for (const id of ['e1', 'e2']) {
+    const ui = await row(id)
+    expect(await ui.find({ text: /linha do motor/ })).toBeDefined()
+    const svgs = await ui.findAll({ type: 'Svg' })
+    expect(svgs.some(s => String(s.props.alt).includes('+2 −1'))).toBe(true)
+    expect(await ui.find({ key: `split-${id}` })).toBeUndefined()
+    await ui.unmount()
+  }
 })
 
 test('a faixa mostra a classe e o que ela faz enquanto o Claude trabalha', { options: { language: 'pt-BR' } }, async ($, on) => {

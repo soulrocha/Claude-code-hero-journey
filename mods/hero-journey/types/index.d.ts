@@ -22,17 +22,14 @@ export type ModuleId =
   | 'guarda'
   | 'campanha'
   | 'grimorio'
-  | 'sideQuest'
   | 'mochila'
-  | 'comemoracao'
-  | 'projetos'
+  | 'recibo'
 
 /** Uma linha do diário de bordo: uma chamada de ferramenta da sessão principal. */
 export type DiaryEntry = {
   id: string
   tool: string
   cls: Cls
-  group: string
   turnId: string
   summary: string
   status: 'run' | 'ok' | 'err'
@@ -66,14 +63,9 @@ export type Inventory = {
   recent?: { hash: string; subject: string; when: string }[]
 }
 
-export type Section = 'objetivo' | 'quests' | 'grupo' | 'inventario' | 'relatorio' | 'rodape'
-export type Profile = 'completo' | 'foco' | 'minimo' | 'personalizado'
 export type GuardMode = 'nativo' | 'dialogo' | 'chefe'
 
 export type Prefs = {
-  profile: Profile
-  hidden: Section[]
-  diary: 'agrupado' | 'separado'
   partyJoined: boolean
   skin: Skin
   modules: Partial<Record<ModuleId, boolean>>
@@ -83,20 +75,32 @@ export type Prefs = {
 
 /** A ferramenta em curso; `file` é o arquivo que ela toca, se houver (o item na mão do pet). */
 export type Working = { tool: string; cls: Cls; summary: string; file?: string }
-export type Card = 'grimorio' | 'compactar' | 'sideQuest'
-export type View = 'main' | 'config' | 'sobre' | 'grimorio' | 'projetos' | 'boasVindas'
+export type Card = 'grimorio' | 'compactar'
+export type View = 'main' | 'config' | 'sobre' | 'grimorio' | 'boasVindas'
 
-/** Um projeto: um nome e as pastas a que o Claude deve ter acesso nele. */
-export type Project = { id: string; name: string; folders: string[]; pinned: boolean }
+/** Uma janela de uso do plano (5 horas, semanal), como o motor a mede. */
+export type UsageWindow = { kind: string; percentUsed: number; resetsAt?: string }
+
+/** Os recursos lidos do motor: a mochila (contexto) e as janelas de uso. */
+export type Resources = {
+  /** Tokens no contexto agora; ausente antes da primeira resposta. */
+  tokens?: number
+  /** A janela do modelo, em tokens. */
+  window: number
+  /** Onde o Claude Code compacta sozinho; ausente com a compactação automática desligada. */
+  compactsAt?: number
+  /** As maiores categorias do contexto, para o "o que tem na mochila". */
+  top: { name: string; tokens: number }[]
+  windows: UsageWindow[]
+  /** Os tokens no fim de cada turno, os 12 últimos. */
+  history: number[]
+}
 
 /** As respostas da página Primeiros passos. */
 export type Setup = { vault?: 'sim' | 'nao'; msg?: string }
 
 /** Um arquivo protegido na hora da pergunta, com o diff para o modo chefe. */
 export type GuardFile = { name: string; path: string; added: number; removed: number; diff: string }
-
-/** Uma ação do capítulo na linha do tempo do relatório. */
-export type Beat = { cls: Cls; tool: string; summary: string; status: 'ok' | 'err' | 'run'; ms?: number }
 
 export type Report = {
   chapter: number
@@ -116,8 +120,6 @@ export type Report = {
   created: number
   failed: number
   refusals: string[]
-  beats: Beat[]
-  verdict?: 'aprovado' | 'ajustar'
 }
 
 export type Chapter = { n: number; prompt: string; turnId?: string; report?: Report }
@@ -154,7 +156,6 @@ declare module 'claude-code' {
       theme: string
       turnId: string
       diary: DiaryEntry[]
-      expanded: string[]
       quests: Quest[]
       party: Member[]
       inventory: Inventory
@@ -164,16 +165,16 @@ declare module 'claude-code' {
       view: View
       partyTab: 'grupo' | 'inventario'
       campaign: Campaign | null
-      reportAt: number
-      reportOpen: boolean
       guard: GuardFile[]
       refusals: { turnId: string; text: string }[]
       intent: string
       inscriptions: Inscription[]
-      projects: Project[]
-      sessionDirs: string[]
       setup: Setup
-      confirmDel: string
+      resources: Resources | null
+      /** Sobe a cada minuto enquanto há reset pela frente: redesenha a contagem. */
+      tick: number
+      /** O reset de cada janela que já avisou, para avisar uma vez por período. */
+      warned: Record<string, number>
     }
   }
 }
