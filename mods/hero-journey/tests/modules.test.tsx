@@ -496,27 +496,6 @@ test('grimório: preferência vai ao perfil do ai-memory pelo MCP; sem MCP o des
   expect(String(calls[0]?.args.body)).toContain('Prefiro respostas curtas')
 })
 
-test('side quest: o botão do rodapé põe o cartão e o pedido vai ao prompt', { options: { language: 'pt-BR' } }, async ($, on) => {
-  mock.store(on)
-  on('session.usage', usage)
-  on('ui.render', { component: 'AbovePrompt' }, emptyBand)
-  let filled = ''
-  on('prompt.fill', ($$, e) => {
-    filled = e.text
-    return { isFilled: true } as never
-  })
-
-  const p = await $.ui.mount(pane)
-  expect((await p.find({ key: 'side-quest' }))?.text).toContain('Side quest')
-  await p.press({ key: 'side-quest' })
-  await p.unmount()
-
-  const card = await $.ui.mount(band)
-  await card.press({ key: 'sq-fill' })
-  expect(filled).toStartWith('Abra uma side quest')
-  expect(filled).toContain('Tarefa da side quest:')
-  await card.unmount()
-})
 
 test('mochila: Compactar agora só com o Claude parado', { options: { language: 'pt-BR' } }, async ($, on) => {
   mock.store(on)

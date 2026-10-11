@@ -3,9 +3,10 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { DiaryEntry } from '../types'
 import { classOf } from '../hooks/core/classes'
 import { looksPortuguese, resolveLang } from '../hooks/core/i18n'
-import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule, toggleSection, withProfile } from '../hooks/core/prefs'
+import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule } from '../hooks/core/prefs'
 import { buildReport, briefingOf, newCampaign, onPrompt } from '../hooks/modules/campanha/campanha'
-import { groupFor, groupStats, groupView } from '../hooks/modules/diario/diario'
+import { alertOf, bagOf, countdown, readingOf, warningsOf, windowOf } from '../hooks/modules/mochila/recursos'
+import { leadOf, receiptOf } from '../hooks/modules/recibo/recibo'
 import { appendDecision, detect, isSubfolder, memoryTool, mentionsPrivate, oneLine, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
 import { diffOf, makeGuard, verdictOf, LABELS } from '../hooks/modules/guarda/guarda'
 import { parseInventory, rarityOf, questView } from '../hooks/modules/painel/painel'
@@ -13,7 +14,7 @@ import { withScheme } from '../hooks/core/ui'
 import { objectiveOf } from '../hooks/modules/painel/view'
 import { cutAtWord, shortGoal } from '../hooks/modules/campanha/campanha'
 import { humanType } from '../hooks/core/classes'
-import { objectiveBar } from '../hooks/core/hero-art'
+import { objectiveBar } from '../hooks/core/art'
 
 describe('classes', () => {
   test('cada classe da tabela do handoff tem a sua atividade', async () => {
@@ -36,34 +37,76 @@ const entry = (id: string, over: Partial<DiaryEntry> = {}): DiaryEntry => ({
   id,
   tool: 'Edit',
   cls: 'artifice',
-  group: id,
   turnId: 't1',
   summary: id,
   status: 'ok',
   ...over,
 })
 
-describe('diário', () => {
-  test('linhas seguidas da mesma classe no mesmo turno formam um grupo', async () => {
-    const a = entry('a')
-    expect(groupFor([a], 'artifice', 't1', 'b', [])).toBe('a')
-    expect(groupFor([a], 'mago', 't1', 'b', [])).toBe('b')
-    expect(groupFor([a], 'artifice', 't2', 'b', [])).toBe('b')
-    expect(groupFor([a], 'artifice', 't1', 'b', ['a'])).toBe('b')
+describe('recibo do turno', () => {
+  test('quem mais agiu, os números e o tempo; a missão só quando mexeu em arquivo sem falha', async () => {
+    const entries = [entry('a', { added: 40, removed: 8 }), entry('b', { isNew: true, added: 2 }), entry('c', { cls: 'paladino', tool: 'Bash' })]
+    expect(leadOf(entries)).toBe('artifice')
+    const r = buildReport({ n: 1, prompt: 'x' }, entries, '**Missão:** Corrige o login', 72_000, 'answer', [])
+    expect(receiptOf(r, 'Artífice', 'pt')).toBe('🦀 ✦ Missão cumprida: Corrige o login · Artífice · 3 ações · +42 −8 · 1 novo · 1min 12s')
+    const failed = buildReport({ n: 1, prompt: 'x' }, [...entries, entry('d', { status: 'err' })], '**Missão:** X', 5000, 'answer', ['.env (Edit)'])
+    expect(receiptOf(failed, 'Artífice', 'en')).toBe('🦀 Artífice · 4 actions · +42 −8 · 1 new · ✗ 1 failed · 🛡 1 blocked · 5s')
   })
 
-  test('agrupado: cabeça com o resumo, o resto escondido; separado ou aberto: linhas soltas', async () => {
-    const list = [entry('a', { isNew: true }), entry('b', { group: 'a', added: 42, removed: 8 })]
-    expect(groupView(list, 'a', 'agrupado', []).kind).toBe('head')
-    expect(groupView(list, 'b', 'agrupado', []).kind).toBe('hidden')
-    expect(groupView(list, 'b', 'separado', []).kind).toBe('single')
-    expect(groupView(list, 'a', 'agrupado', ['a']).kind).toBe('single')
-    expect(groupStats(list)).toEqual({ count: 2, created: 1, failed: 0, added: 42, removed: 8 })
+  test('turno que só conversou não ganha recibo', async () => {
+    expect(receiptOf(buildReport({ n: 1, prompt: 'x' }, [], 'Oi!', 1000, 'answer', []), undefined, 'pt')).toBeUndefined()
+  })
+})
+
+describe('recursos', () => {
+  const usage = (tokens: number, extra: object = {}) => ({ context: { tokens, window: 200_000, ...extra }, rateLimits: [] })
+
+  test('a mochila mede até a compactação automática, em palavras, com o peso do último turno', async () => {
+    const breakdown = {
+      categories: [
+        { name: 'Messages', tokens: 90_000, kind: 'used' },
+        { name: 'MCP tools', tokens: 20_000, kind: 'used' },
+        { name: 'Free space', tokens: 50_000, kind: 'free' },
+      ],
+      autoCompactThreshold: 160_000,
+      isAutoCompactEnabled: true,
+    }
+    const first = readingOf(usage(60_000, { breakdown }), null, true)
+    const second = readingOf(usage(128_000), first, true)
+    expect(second.compactsAt).toBe(160_000)
+    expect(second.top.map(t => t.name)).toEqual(['Messages', 'MCP tools'])
+    expect(bagOf(second)).toEqual({ percent: 80, state: 'pesada', delta: 68_000, left: 32_000, limit: 160_000 })
+    expect(bagOf(readingOf(usage(150_000), second, false)).state).toBe('transbordando')
+    // Sem compactação automática, a régua é a janela inteira.
+    expect(bagOf(readingOf(usage(60_000, { breakdown: { ...breakdown, isAutoCompactEnabled: false } }), null, false)).percent).toBe(30)
   })
 
-  test('um grupo com chamada rodando fica aberto', async () => {
-    const list = [entry('a'), entry('b', { group: 'a', status: 'run' })]
-    expect(groupView(list, 'a', 'agrupado', []).kind).toBe('single')
+  test('mana e vigor: o que resta, a janela que já virou, o ritmo e a contagem', async () => {
+    const now = Date.parse('2026-10-10T12:00:00Z')
+    const in1h = new Date(now + 3600_000).toISOString()
+    // 4 de 5 horas já passaram e só 30% foram gastos: no ritmo.
+    expect(windowOf({ kind: 'five_hour', percentUsed: 30, resetsAt: in1h }, now)).toMatchObject({ left: 70, fast: false, level: 'ok' })
+    // Uma hora de janela e 60% gastos: rápido demais.
+    const in4h = new Date(now + 4 * 3600_000).toISOString()
+    expect(windowOf({ kind: 'five_hour', percentUsed: 60, resetsAt: in4h }, now).fast).toBe(true)
+    expect(windowOf({ kind: 'five_hour', percentUsed: 92, resetsAt: in1h }, now).level).toBe('critico')
+    const past = new Date(now - 60_000).toISOString()
+    expect(windowOf({ kind: 'seven_day', percentUsed: 95, resetsAt: past }, now)).toMatchObject({ left: 100, refilled: true })
+    expect([countdown(42 * 60_000), countdown(236 * 60_000), countdown(98 * 3600_000)]).toEqual(['42m', '3h56', '4d2h'])
+  })
+
+  test('o aviso sai uma vez por período e a faixa só mostra o recurso em alerta', async () => {
+    const now = Date.parse('2026-10-10T12:00:00Z')
+    const resetsAt = new Date(now + 3600_000).toISOString()
+    const low = [{ kind: 'five_hour', percentUsed: 93, resetsAt }]
+    const first = warningsOf(low, {}, now)
+    expect(first.fire.map(f => f.kind)).toEqual(['five_hour'])
+    expect(warningsOf(low, first.warned, now).fire).toEqual([])
+    const next = new Date(now + 5 * 3600_000).toISOString()
+    expect(warningsOf([{ kind: 'five_hour', percentUsed: 95, resetsAt: next }], first.warned, now).fire).toHaveLength(1)
+    const r = readingOf({ context: { tokens: 10_000, window: 200_000 }, rateLimits: low }, null, false)
+    expect(alertOf(r, now)).toEqual({ kind: 'mana', percent: 7 })
+    expect(alertOf(readingOf({ context: { tokens: 10_000, window: 200_000 }, rateLimits: [] }, null, false), now)).toBeUndefined()
   })
 })
 
@@ -138,15 +181,6 @@ describe('língua e perfis', () => {
     expect(resolveLang('auto', undefined, undefined, 'faça o deploy por favor')).toBe('pt')
     expect(resolveLang('auto', undefined, undefined, 'deploy the app')).toBe('en')
   })
-
-  test('mexer numa seção vira Personalizado; escolher um perfil aplica o que ele esconde', async () => {
-    expect(withProfile(DEFAULT_PREFS, 'minimo').hidden).toContain('inventario')
-    const focus = withProfile(DEFAULT_PREFS, 'foco')
-    expect(focus.hidden).toEqual(['grupo', 'inventario'])
-    const custom = toggleSection(focus, 'grupo')
-    expect(custom.profile).toBe('personalizado')
-    expect(custom.hidden).toEqual(['inventario'])
-  })
 })
 
 describe('módulos', () => {
@@ -155,10 +189,9 @@ describe('módulos', () => {
     const off = toggleModule(DEFAULT_PREFS, 'guarda')
     expect(isOn(off, 'guarda')).toBe(false)
     expect(isOn(toggleModule(off, 'guarda'), 'guarda')).toBe(true)
-    const old = migratePrefs({ profile: 'foco', hidden: ['grupo', 'diario'], diary: 'separado', partyJoined: true, skin: 'sobrio' })
-    expect(old.hidden).toEqual(['grupo'])
-    expect(old.guardMode).toBe('dialogo')
-    expect(old.skin).toBe('sobrio')
+    // Prefs de antes da simplificação: perfis, seções, modo do diário e módulos que saíram somem.
+    const old = migratePrefs({ profile: 'foco', hidden: ['grupo'], diary: 'separado', partyJoined: true, skin: 'sobrio', modules: { projetos: false, guarda: false } })
+    expect(old).toEqual({ partyJoined: true, skin: 'sobrio', modules: { guarda: false }, guardMode: 'dialogo', grimorioHaiku: false })
   })
 })
 
