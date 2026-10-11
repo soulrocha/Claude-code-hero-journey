@@ -184,8 +184,13 @@ async function readResources($: EngineInterface, detailed: boolean, turnEnded: b
 
 /** Guarda a leitura, avisa a janela que ficou crítica e põe o cartão de compactar quando a mochila pesa. */
 async function takeReading($: EngineInterface, u: UsageReading, turnEnded: boolean) {
-  const next = readingOf(u, await read($, resources), turnEnded)
+  const prev = await read($, resources)
+  const next = readingOf(u, prev, turnEnded)
   await update($, resources, () => next)
+  // Uma queda brusca da mochila é uma compactação (a automática também): o cartão
+  // que pedia para compactar sai, se ela ficou abaixo do limite.
+  const emptied = prev?.tokens !== undefined && next.tokens !== undefined && next.tokens < prev.tokens * 0.6
+  if (emptied && (bagOf(next).percent ?? 0) < COMPACT_AT) await dropCard($, 'compactar')
   const t = DICT[await langNow($)]
   const before = await read($, warned)
   const w = warningsOf(next.windows, before, Date.now())
@@ -573,12 +578,17 @@ async function paneFit($: EngineInterface, cols: number, bodyRows: number) {
   const fixed = objective + 1 + rowsOf(questsPx) + 2 + footer + 3
   const room = (bodyRows - fixed) * PX_PER_ROW
   const joined = (await read($, prefs)).partyJoined
-  const share = joined ? room : room / 2
+  // Separados, o grupo e o inventário dividem o espaço, e entram o título do inventário,
+  // o ⊟ Juntar e os dois espaços entre eles (no lugar da linha das abas): três linhas a mais.
+  const share = joined ? room : (room - 3 * PX_PER_ROW) / 2
   // Inventário: a linha do branch e a da raridade, e 24 px por item.
+  const invMin = 2 * PX_PER_ROW + 24
   const maxItems = Math.max(0, Math.min(8, Math.floor((share - 2 * PX_PER_ROW) / 24)))
-  // Grupo: o Clawd sempre, a fileira dos que voltaram e o "+N"; 62 px por cartão em ação.
+  // Grupo: o Clawd sempre (62 px), a fileira dos que voltaram e o "+N"; 62 px por cartão em ação.
   const maxCards = Math.max(0, Math.min(3, Math.floor((share - 62 - 30 - PX_PER_ROW) / 62)))
-  const pinned = share >= (joined && (await read($, partyTab)) === 'inventario' ? 3 * PX_PER_ROW + 24 : 62)
+  // Preso só se o mínimo de cada bloco à vista couber: nas abas, o da aba aberta; separados, os dois.
+  const tab = await read($, partyTab)
+  const pinned = joined ? share >= (tab === 'inventario' ? invMin : 62) : share >= Math.max(62, invMin)
   return { pinned, maxItems: Math.max(1, maxItems), maxCards }
 }
 
@@ -850,7 +860,10 @@ export const register: Register = (on, options) => {
   // Um /compact (também o automático) esvazia a mochila sem fim de turno: lê de novo.
   on('session.compact', async ($, e, next) => {
     const ran = await next(e)
-    if ((e as { agentId?: string }).agentId === undefined && 'messages' in (ran as object)) await readResources($, true, false)
+    // O `precompute` só prepara um resumo para depois: nada foi compactado ainda.
+    // A leitura nova tira o cartão de compactar quando a mochila esvazia (takeReading).
+    const main = (e as { agentId?: string }).agentId === undefined && e.trigger !== 'precompute'
+    if (main && 'messages' in (ran as object)) await readResources($, true, false)
     return ran
   }).catch(($, e, next) => next(e))
 

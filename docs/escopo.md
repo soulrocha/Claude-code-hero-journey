@@ -4,7 +4,7 @@ O que a HUD deve fazer, o que ela faz hoje e o que sai para ela ficar menor e me
 
 ## Estado em 2026-10-10 (noite)
 
-Feito na versão 0.5.0, com 100 testes passando no motor 2.1.295:
+Feito na versão 0.5.0, com 102 testes passando no motor 2.1.295:
 
 - **Saiu:** Projetos, Side quest, a comemoração em toast, o agrupamento do diário, os perfis e seções do painel, o código do relatório e as artes sem uso. As três artes viraram `core/art.ts`.
 - **Entrou:** o recibo do turno, os recursos aprimorados (a tabela "O que muda", menos o mini gráfico dos turnos, o toast depois do `/compact` automático, a Fogueira e o Ouro; o peso do último turno ficou no tooltip), o seletor de pasta do sistema para o vault e o atalho para a pasta das decisões.

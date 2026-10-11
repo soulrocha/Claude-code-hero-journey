@@ -50,16 +50,26 @@ export const pickedOf = (stdout: string) => {
   return path.replace(/[\\/]+$/, '')
 }
 
-const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+/** Um caminho do Windows (letra de disco ou barra invertida): lá maiúsculas e minúsculas são a mesma pasta. */
+const isWindowsPath = (p: string) => /^[a-z]:/i.test(p) || p.includes('\\')
 
 /**
  * A subpasta de `root` que `picked` é, com as barras do sistema, ou undefined
- * quando `picked` está fora de `root` ou é o próprio `root`.
+ * quando `picked` está fora de `root` ou é o próprio `root`. Maiúsculas só se
+ * igualam em caminho do Windows: no Linux, /Vault e /vault são pastas diferentes.
+ * Um vault na raiz (`/`) aceita qualquer pasta abaixo dela.
  */
 export const subfolderOf = (root: string, picked: string) => {
+  const fold = isWindowsPath(root) || isWindowsPath(picked)
+  const norm = (s: string) => {
+    const t = s.replace(/\\/g, '/').replace(/\/+$/, '')
+    return fold ? t.toLowerCase() : t
+  }
   const r = norm(root)
   const p = norm(picked)
-  if (r === '' || p === r || !p.startsWith(`${r}/`)) return undefined
+  // `/` vira '' sem a barra final: é a raiz, não um caminho vazio.
+  const isRoot = r === '' && /^[\\/]+$/.test(root)
+  if ((r === '' && !isRoot) || p === r || !p.startsWith(`${r}/`)) return undefined
   return picked
     .replace(/\\/g, '/')
     .slice(r.length + 1)

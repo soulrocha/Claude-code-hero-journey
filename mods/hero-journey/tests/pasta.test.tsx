@@ -44,6 +44,15 @@ describe('pastas do sistema: regras puras', () => {
     expect(subfolderOf('/vault', '/outro')).toBeUndefined()
   })
 
+  test('revisão do Devin: vault na raiz e maiúsculas só iguais no Windows', () => {
+    expect(subfolderOf('/', '/Notas')).toBe('Notas')
+    expect(subfolderOf('/', '/')).toBeUndefined()
+    // No Linux e no macOS sensível a maiúsculas, /vault não é /Vault.
+    expect(subfolderOf('/Vault', '/vault/Inbox')).toBeUndefined()
+    expect(subfolderOf('/Vault', '/Vault/Inbox')).toBe('Inbox')
+    expect(subfolderOf('D:\\Notas', 'd:\\NOTAS\\Inbox')).toBe('Inbox')
+  })
+
   test('juntar caminhos com a barra que o vault já usa; abrir no Explorer com barras do Windows', () => {
     expect(joinPath('C:\\Notas', 'Inbox/Decisões')).toBe('C:\\Notas\\Inbox\\Decisões')
     expect(joinPath('/vault/', 'Inbox')).toBe('/vault/Inbox')

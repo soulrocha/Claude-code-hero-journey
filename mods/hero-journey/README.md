@@ -154,7 +154,7 @@ Estrutura:
 | `hooks/register.tsx` | Liga os módulos aos eventos. Todo o código que usa `$` fica aqui: o motor recusa o `$` passado para uma função importada (conferido no 2.1.295). |
 | `hooks/core/` | Arte em Svg (`art.ts`, num arquivo só), textos pt/en, classes, preferências, pastas do sistema e o que todas as telas usam |
 | `hooks/modules/<módulo>/` | A lógica (`<módulo>.ts`, pura) e a tela (`view.tsx`) de cada módulo |
-| `tests/` | 100 testes no motor, em desktop e terminal, incluindo as regressões dos QAs e da revisão do PR |
+| `tests/` | 102 testes no motor, em desktop e terminal, incluindo as regressões dos QAs e da revisão do PR |
 
 ---
 
