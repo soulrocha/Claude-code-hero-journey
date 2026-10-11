@@ -2,6 +2,36 @@
 
 As mudanças de cada versão. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.5.0] - 2026-10-10 (ainda não publicada)
+
+A HUD ficou menor: oito módulos que respondem a "o que o Claude está fazendo", "onde estou no objetivo", "quanto fôlego tenho" e "o que precisa de mim". O porquê de cada corte está em [docs/escopo.md](docs/escopo.md).
+
+### Adicionado
+- **Recibo do turno:** uma linha embaixo da resposta com a classe que mais agiu, as ações, +/−, arquivos novos, falhas, bloqueios do guarda e o tempo; com a missão cumprida sem falha, "🦀 ✦ Missão cumprida: …" abre a linha. Fica no chat depois que o app recolhe o diário. Zero tokens. Ideia do [Flightdeck](https://github.com/scasella/claude-flightdeck).
+- **Recursos aprimorados**, a partir do [token-weather](https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/token-weather), do [usage-meter e do context-bar](https://github.com/hamzafer/claude-code-mods):
+  - a Mochila mede o contexto até o ponto da compactação automática (antes, contra a janela inteira, e o cartão dos 85% podia nunca aparecer), diz o estado em palavras (Leve, Carregada, Pesada, Transbordando) e, no tooltip, o peso do último turno e o que ocupa espaço;
+  - Mana e Vigor mostram o que resta, com a contagem até renovar atualizada a cada minuto, "recarregada" quando a janela vira, o ritmo de gasto (⚡ quando acaba antes de renovar) e um aviso por período a 10%;
+  - um selo na faixa só quando um recurso entra em alerta;
+  - os recursos são lidos de novo depois de um `/compact`, também o automático.
+- **Vault:** o **📁 Escolher pasta** abre o seletor de pastas do sistema para o vault e para a pasta de entrada, ao lado do campo de texto. O **📂 Abrir a pasta das decisões** abre no Explorer (ou no Finder) a pasta onde o grimório deixa as decisões, nos Primeiros passos e na página do grimório.
+- **ai-memory:** com o MCP conectado, os Primeiros passos convidam a apoiar o Fabio Akita com uma estrela no repositório.
+
+### Mudou
+- **Painel:** os botões e os recursos ficam presos no fim; cartões do grupo e itens do inventário que não cabem viram "+N", para o rodapé não sair do lugar. Os recursos ganharam uma linha cada, sem texto por cima de texto. O espaço entre as seções caiu pela metade, as abas Grupo e Inventário alinham à esquerda e os botões do objetivo e do rodapé ganharam o glifo dourado e quebram de linha em vez de cortar.
+- **Diário de bordo:** só o mascote, o trilho e o selo em cada linha. O app desktop já recolhe as linhas no fim do turno.
+- **⚙:** módulos, língua, pele, modo da proteção e o Haiku do grimório.
+- **Arte:** os três arquivos (`art.ts`, `hero-art.ts`, `polish-art.ts`) viraram um, sem as funções que nada chamava e sem a segunda cópia do desenho do Clawd.
+
+### Removido
+- **Projetos** (`/projetos`) e o acesso às pastas pelo `settings.local.json`.
+- **Side quest** (`/side-quest`): o [ctx-handoff](https://github.com/cablate/ctx-handoff-mod) e o [claude-auto-handoff](https://github.com/alexknowshtml/claude-auto-handoff) fazem a passagem de sessão.
+- **Comemoração em toast**, que virou o recibo do turno.
+- O agrupamento do diário (Separar ›, modo Agrupado/Separado), os perfis do painel e a escolha de seções.
+- O código do relatório da missão, que não aparecia desde a revisão de 2026-10-09.
+
+### Corrigido
+- **`/clear`, `/resume` e `/branch`:** zeravam o estado da sessão sem rodar o início do mod, e a HUD voltava para o inglês e para as preferências padrão até recarregar. Agora ela se recarrega no `SessionStart` desses três.
+
 ## [0.4.0] - 2026-10-09
 
 Primeira versão pública. **Beta:** feita primeiro para o app desktop; o suporte ao Claude Code CLI (terminal) vem depois.

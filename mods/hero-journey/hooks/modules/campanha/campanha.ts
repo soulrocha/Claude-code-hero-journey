@@ -1,12 +1,19 @@
-// Campanha e relatório da missão. A campanha é a sessão: o título e o objetivo
-// vêm da primeira mensagem, cada mensagem nova abre um capítulo, e o fim de cada
-// turno fecha o capítulo com um relatório. A linha do tempo do relatório se
-// inspira no session-time-machine, de Daniel Ávila (claude-code-templates, MIT) —
+// Campanha: a sessão é a campanha. O título e o objetivo vêm da primeira
+// mensagem, cada mensagem nova abre um capítulo, e o fim de cada turno fecha o
+// capítulo com o que aconteceu nele (a missão, os números e as falhas), que
+// alimenta a barra do objetivo e o recibo do turno. A ideia de linha do tempo
+// da sessão veio do session-time-machine, de Daniel Ávila (claude-code-templates, MIT) —
 // https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/productivity/session-time-machine
 
-import type { Beat, Campaign, Chapter, DiaryEntry, Report } from '../../../types'
+import type { Campaign, Chapter, DiaryEntry, Report } from '../../../types'
 
 const clean = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/** Título curto: a primeira frase da mensagem, até 60 caracteres. */
+const titleOf = (prompt: string) => {
+  const first = clean(prompt).split(/(?<=[.!?])\s/)[0] ?? ''
+  return first.length > 60 ? `${first.slice(0, 59)}…` : first
+}
 
 export const newCampaign = (id: string, prompt: string, at: number): Campaign => ({
   id,
@@ -44,20 +51,12 @@ export const shortGoal = (prompt: string) => {
 /** O objetivo para mostrar: o título que o app deu à sessão, a Missão da 1ª resposta ou o shortGoal. */
 export const goalOf = (c: Campaign) => c.short ?? shortGoal(c.objective)
 
-/** Título curto: a primeira frase da mensagem, até 60 caracteres. */
-export const titleOf = (prompt: string) => {
-  const first = clean(prompt).split(/(?<=[.!?])\s/)[0] ?? ''
-  return first.length > 60 ? `${first.slice(0, 59)}…` : first
-}
-
 /** Uma mensagem nova: a primeira cria a campanha, as outras abrem capítulos. */
 export const onPrompt = (c: Campaign | null, id: string, prompt: string, at: number): Campaign => {
   if (c === null) return newCampaign(id, prompt, at)
   const n = c.chapters.length + 1
   return { ...c, chapters: [...c.chapters, { n, prompt: clean(prompt).slice(0, 140) }] }
 }
-
-export const currentChapter = (c: Campaign | null): Chapter | undefined => c?.chapters[c.chapters.length - 1]
 
 /** O capítulo de um turno. Um turno sem mensagem nova (continuação) não tem capítulo. */
 export const chapterOf = (c: Campaign | null, turnId: string): Chapter | undefined => c?.chapters.find(ch => ch.turnId === turnId)
@@ -91,7 +90,7 @@ export const briefingOf = (answer: string) => {
   }
 }
 
-/** O relatório de um capítulo, montado do diário do turno e da resposta final. */
+/** O fechamento de um capítulo, montado do diário do turno e da resposta final. */
 export const buildReport = (
   chapter: Chapter,
   entries: readonly DiaryEntry[],
@@ -102,7 +101,6 @@ export const buildReport = (
 ): Report => {
   const b = briefingOf(answer)
   const files = new Set(entries.filter(e => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(e.tool)).map(e => e.summary))
-  const beats: Beat[] = entries.map(e => ({ cls: e.cls, tool: e.tool, summary: e.summary, status: e.status, ms: e.ms }))
   return {
     chapter: chapter.n,
     title: b.mission ?? chapter.prompt.slice(0, 80),
@@ -120,7 +118,6 @@ export const buildReport = (
     created: entries.filter(e => e.isNew === true).length,
     failed: entries.filter(e => e.status === 'err').length,
     refusals: [...refusals],
-    beats: beats.slice(-40),
   }
 }
 
@@ -133,11 +130,6 @@ export const closeChapter = (c: Campaign, report: Report): Campaign => ({
 export const reports = (c: Campaign | null): Report[] =>
   (c?.chapters ?? []).map(ch => ch.report).filter((r): r is Report => r !== undefined)
 
-export const setVerdict = (c: Campaign, chapter: number, verdict: Report['verdict']): Campaign => ({
-  ...c,
-  chapters: c.chapters.map(ch => (ch.n === chapter && ch.report !== undefined ? { ...ch, report: { ...ch.report, verdict } } : ch)),
-})
-
 /** Cada campanha numa chave própria do `$.store`, para duas sessões não sobrescreverem uma à outra. */
 export const storeKey = (id: string) => `campanha:${id}`
 
@@ -145,7 +137,3 @@ export const storeKey = (id: string) => `campanha:${id}`
 export const prune = (stored: readonly { key: string; startedAt: number }[], keep = 20) =>
   [...stored].sort((a, b) => b.startedAt - a.startedAt).slice(keep).map(x => x.key)
 
-export const fmtDuration = (ms: number) => {
-  const s = Math.round(ms / 1000)
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}min ${String(s % 60).padStart(2, '0')}s`
-}

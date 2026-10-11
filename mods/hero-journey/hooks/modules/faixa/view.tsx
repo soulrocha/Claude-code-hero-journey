@@ -6,9 +6,8 @@
 import type { RenderElement } from 'claude-code'
 
 import type { Campaign, Member, Quest, Working } from '../../../types'
-import { classColor } from '../../core/art'
-import type { Step } from '../../core/hero-art'
-import { bandArt } from '../../core/hero-art'
+import { bandArt, classColor } from '../../core/art'
+import type { Step } from '../../core/art'
 import type { Ctx } from '../../core/ui'
 import { svg } from '../../core/ui'
 import { humanType } from '../../core/classes'
@@ -48,6 +47,8 @@ export const bandView = (
   toggle: () => void,
   away: readonly Member[] = [],
   intent = '',
+  /** O selo de um recurso em alerta ("🎒 Mochila 92%"), ao lado do ◈; só aparece quando importa. */
+  alert?: string,
 ): RenderElement => {
   const { Box, Button, Text } = c.ui
   const name = now ? c.t.className[now.cls] : ''
@@ -72,6 +73,7 @@ export const bandView = (
           </Text>
         )}
         <Box flexGrow={1} />
+        {alert !== undefined && <Text color="warning">{alert}</Text>}
         {goal !== '' && <Text dimColor>{goal}</Text>}
       </Box>
     )
@@ -103,13 +105,15 @@ export const bandView = (
     idle,
     goal,
     c.palette,
-    26,
+    // O ◈ ocupa 26 px; o selo de alerta, quando aparece, empurra a trilha do objetivo para a esquerda.
+    26 + (alert === undefined ? 0 : Math.round([...alert].length * 7.6 + 12)),
     idleTip,
   )
   return (
     <Box key="band" flexDirection="row">
       {svg(c, art, 'band-art')}
-      <Box position="absolute" top={0} right={0}>
+      <Box position="absolute" top={0} right={0} flexDirection="row" columnGap={1} alignItems="center">
+        {alert !== undefined && <Button key="hero-alert" plain label={alert} onPress={toggle} />}
         <Button key="hero-toggle" plain dimColor label="◈" onPress={toggle} />
       </Box>
     </Box>

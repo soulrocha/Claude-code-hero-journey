@@ -4,10 +4,9 @@
 import type { RenderElement } from 'claude-code'
 
 import type { Destination, Inscription } from '../../../types'
-import { classColor, TONE } from '../../core/art'
-import { divider, grimHeader, inscriptionArt } from '../../core/polish-art'
+import { classColor, divider, grimHeader, inscriptionArt, TONE } from '../../core/art'
 import type { Ctx } from '../../core/ui'
-import { pxOf, svg, title } from '../../core/ui'
+import { inputOf, pxOf, svg, title } from '../../core/ui'
 import { available } from './grimorio'
 import type { Dests } from './grimorio'
 
@@ -17,6 +16,8 @@ export type GrimActions = {
   discard: () => void
   /** Só existe com o botão do Haiku ligado no ⚙: gasta tokens, e só no clique. */
   haiku?: () => void
+  /** Abre no Explorer/Finder a pasta do vault onde as decisões caem. */
+  openDecisions?: () => void
 }
 
 const ALL: readonly Destination[] = ['claudeMd', 'agentsMd', 'vaultDecisao', 'carreira', 'aiMemory']
@@ -103,6 +104,10 @@ export const grimPage = (c: Ctx, pendingList: readonly Inscription[], sealedList
     <Box flexDirection="column" gap={1}>
       <Button key="back" plain label={c.t.back} onPress={back} />
       {title(c, c.t.grimTitle)}
+      {/* Só onde há campo de texto: no celular, a pasta abriria no computador. */}
+      {paths.vault !== '' && act.openDecisions !== undefined && inputOf(c.ui) !== undefined && (
+        <Button key="grim-open-decisions" plain dimColor label={c.t.openDecisions} onPress={act.openDecisions} />
+      )}
       {pendingList.length === 0 ? <Text dimColor>{c.t.grimEmpty}</Text> : grimCard(c, pendingList, paths, act)}
       {sealedList.length > 0 && (
         <Box flexDirection="column">

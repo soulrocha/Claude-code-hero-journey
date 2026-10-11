@@ -1,24 +1,21 @@
-// O painel: o cartão da campanha (objetivo curto e progresso), as quests do
-// capítulo, grupo e inventário, e o rodapé preso embaixo; mais as páginas
-// ⚙ Configurações e ℹ Sobre. O detalhe de cada missão fica na resposta final
-// do Claude, não no painel. Com poucos dados a tela não fica vazia: o Clawd
-// está sempre no grupo, os capítulos fazem as vezes das quests e o inventário
-// limpo mostra os últimos commits.
+// O painel: o objetivo e o progresso, as quests do capítulo, grupo e inventário,
+// e no fim, presos embaixo, os botões e os recursos (Mochila, Mana e Vigor);
+// mais as páginas ⚙ Configurações e ℹ Sobre. Com poucos dados a tela não fica
+// vazia: o Clawd está sempre no grupo, os capítulos fazem as vezes das quests e o
+// inventário limpo mostra os últimos commits.
 
 import type { RenderElement } from 'claude-code'
 
-import type { Campaign, Cls, GuardMode, Inventory, Member, ModuleId, Prefs, Profile, Quest, Rarity, Section, Skin, Working } from '../../../types'
-import { linkIcon } from '../../core/art'
-import { humanType } from '../../core/classes'
-import type { MemberArt, QuestArt } from '../../core/hero-art'
-import { doneMembersArt, glyphOf, itemsArt, memberArt, objectiveBar, questIconAt, questsArt, rarityTone, resourcesArt } from '../../core/hero-art'
-import type { IconName } from '../../core/polish-art'
-import { categoryHeader, featureList, icon, parade } from '../../core/polish-art'
-import { isOn, isShown, MODULES, SECTIONS } from '../../core/prefs'
+import type { Campaign, Cls, GuardMode, Inventory, Member, ModuleId, Prefs, Quest, Rarity, Resources, Skin, Working } from '../../../types'
+import { categoryHeader, doneMembersArt, featureList, glyphOf, itemsArt, linkIcon, memberArt, objectiveBar, parade, questIconAt, questsArt, rarityTone, resourceRows, toneOf } from '../../core/art'
+import { clockOf, humanType, untilOf } from '../../core/classes'
+import type { IconName, MemberArt, QuestArt, ResRow } from '../../core/art'
+import { isOn, MODULES } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
 import { GITHUB_URL, LINKEDIN_URL, pxOf, svg, title, VERSION } from '../../core/ui'
 import { goalOf } from '../campanha/campanha'
 import { campaignSteps } from '../faixa/view'
+import { bagOf, countdown, short, windowOf } from '../mochila/recursos'
 import { questView } from './painel'
 
 export type PaneData = {
@@ -28,7 +25,11 @@ export type PaneData = {
   party: readonly Member[]
   inventory: Inventory
   partyTab: 'grupo' | 'inventario'
-  usage: { context?: number; mana?: number; manaAt: string; manaIn: string; vigor?: number; vigorAt: string; vigorIn: string }
+  resources: Resources | null
+  /** O instante do desenho, para a contagem do reset. */
+  now: number
+  /** Quanto cabe no meio para o rodapé ficar preso no fim (o paneFit do register). */
+  fit: { maxCards: number; maxItems: number }
   working: Working | null
   /** Inscrições do grimório esperando o Selar. */
   pendingInscriptions: number
@@ -42,24 +43,21 @@ export type PaneActions = {
   recalibrate: () => void
   compact: () => void
   grimoire: () => void
-  sideQuest: () => void
-  projects: () => void
   config: () => void
   about: () => void
 }
 
-/** O corpo ocupa o meio; o rodapé fica preso embaixo (o painel recebe a altura toda). */
+/** O corpo ocupa o meio; os botões e os recursos ficam presos no fim (o painel recebe a altura toda). */
 export const mainView = (c: Ctx, d: PaneData, act: PaneActions): RenderElement => {
   const { Box } = c.ui
-  const show = (s: Section) => isShown(d.prefs, s)
   return (
     <Box flexDirection="column" flexGrow={1}>
-      <Box key="body" flexDirection="column" gap={2} flexGrow={1} flexShrink={1} overflow="hidden">
-        {show('objetivo') && objectiveSection(c, d, act)}
-        {show('quests') && questSection(c, d)}
+      <Box key="body" flexDirection="column" gap={1} flexGrow={1} flexShrink={1} overflow="hidden">
+        {objectiveSection(c, d, act)}
+        {questSection(c, d)}
         {partySections(c, d, act)}
       </Box>
-      {show('rodape') && footer(c, d, act)}
+      {footer(c, d, act)}
     </Box>
   )
 }
@@ -70,12 +68,24 @@ export const objectiveOf = (campaign: Campaign | null) =>
 
 const stepWords = (c: Ctx) => ({ step: c.t.stepTip, steps: c.t.stepsWord, chapter: c.t.chapterShort })
 
+/**
+ * Um botão da casa: o glifo em dourado e o rótulo, sem moldura. Uma linha de
+ * botões assim quebra quando falta largura, em vez de cortar o último.
+ */
+const action = (c: Ctx, key: string, glyph: string, label: string, onPress: () => void, dim = false) => {
+  const { Button, Text } = c.ui
+  return (
+    <Button key={key} plain dimColor={dim} label={`${glyph} ${label}`} onPress={onPress}>
+      <Text color={toneOf(c.palette).gild}>{glyph}</Text> {label}
+    </Button>
+  )
+}
+
 const objectiveSection = (c: Ctx, d: PaneData, act: PaneActions) => {
-  const { Box, Button, Text } = c.ui
+  const { Box, Text } = c.ui
   const o = objectiveOf(d.campaign)
   const steps = campaignSteps(d.campaign, d.quests, c.t.chapter)
   const n = Math.max(1, o.n)
-  const label = `${c.t.campaignLabel} · ${c.t.chapterShort(n)}`
   const achieved = d.campaign?.achieved === true
   // "Alcançado?" só depois de ao menos um capítulo fechado: antes disso é ruído.
   const canMark = d.campaign !== null && !achieved && d.campaign.chapters.some(ch => ch.report !== undefined)
@@ -91,15 +101,8 @@ const objectiveSection = (c: Ctx, d: PaneData, act: PaneActions) => {
     )
   }
   // Como no laboratório aprovado: título do quest log, o objetivo curto em negrito
-  // (o inteiro no tooltip da barra) e a barra fina de canto a canto. Com muitos
-  // capítulos, a barra conta todos e desenha só os 12 losangos mais recentes.
-  // Ações do objetivo como chips: ícone desenhado + botão, separadas do texto.
-  const chip = (key: string, iconName: IconName, label: string, onPress: () => void) => (
-    <Box key={`chip-${key}`} flexDirection="row" gap={1} alignItems="center">
-      {svg(c, icon(iconName, c.palette, label), `chip-icon-${key}`)}
-      <Button key={key} plain label={label} onPress={onPress} />
-    </Box>
-  )
+  // e a barra fina de canto a canto. Com muitos capítulos, a barra conta todos e
+  // desenha só os 12 losangos mais recentes. As ações vêm logo embaixo, à esquerda.
   return (
     <Box key="objetivo" flexDirection="column">
       {title(c, c.t.section.objetivo, achieved ? '?' : undefined)}
@@ -108,9 +111,9 @@ const objectiveSection = (c: Ctx, d: PaneData, act: PaneActions) => {
       </Text>
       {steps.length > 0 && svg(c, objectiveBar(pxOf(c), steps, n, c.palette, stepWords(c)), 'objective-bar')}
       {d.campaign !== null && (
-        <Box flexDirection="row" gap={3} marginTop={1}>
-          {chip('recalibrate', 'memoria', c.t.recalibrate.replace(/^✦s*/, ''), act.recalibrate)}
-          {canMark && chip('achieved', 'objetivo', c.t.markAchieved, act.achieved)}
+        <Box flexDirection="row" columnGap={2} flexWrap="wrap">
+          {action(c, 'recalibrate', '✦', c.t.recalibrateShort, act.recalibrate, true)}
+          {canMark && action(c, 'achieved', '◎', c.t.markAchievedShort, act.achieved, true)}
           {achieved && <Text color="success">{c.t.achieved}</Text>}
         </Box>
       )}
@@ -182,9 +185,6 @@ const questSection = (c: Ctx, d: PaneData) => {
           ),
           'chapters-art',
         )}
-        <Text dimColor wrap="wrap">
-          {c.t.questsHint}
-        </Text>
       </Box>
     )
   }
@@ -216,56 +216,48 @@ const questSection = (c: Ctx, d: PaneData) => {
 /** O nome de um membro: o tipo humanizado ("QA adversarial") ou, sem tipo, a classe. */
 const memberName = (c: Ctx, m: Member) => humanType(m.type, c.t.knownTypes) || c.t.className[m.cls]
 
-/** O painel não rola com o rodapé preso: no máximo 3 cartões em ação, o resto vira "+N". */
-const MAX_ACTIVE = 3
-
 const partySections = (c: Ctx, d: PaneData, act: PaneActions) => {
-  const { Box, Button } = c.ui
-  const showParty = isShown(d.prefs, 'grupo')
-  const showInv = isShown(d.prefs, 'inventario')
-  if (!showParty && !showInv) return null
+  const { Box, Button, Text } = c.ui
   const active = d.party.filter(m => m.status === 'run').length
   const counts = { grupo: 1 + active, inventario: d.inventory.items.length }
-  if (d.prefs.partyJoined && showParty && showInv) {
+  if (d.prefs.partyJoined) {
     const on = d.partyTab
-    // Como no laboratório: ◆ Grupo ◇ Inventário centralizados, com o contador; ⊞ separa.
+    // As abas alinhadas à esquerda, com o resto do painel: ◆ a aberta, ◇ a outra; ⊞ separa.
     const tab = (id: 'grupo' | 'inventario', label: string) => (
-      <Button key={`tab-${id}`} plain dimColor={on !== id} label={`${on === id ? '◆' : '◇'} ${label} · ${counts[id]}`} onPress={() => act.tab(id)} />
+      <Button key={`tab-${id}`} plain dimColor={on !== id} label={`${on === id ? '◆' : '◇'} ${label} · ${counts[id]}`} onPress={() => act.tab(id)}>
+        <Text color={on === id ? toneOf(c.palette).gild : undefined}>{on === id ? '◆' : '◇'}</Text> {label} · {String(counts[id])}
+      </Button>
     )
     return (
       <Box key="party" flexDirection="column">
         {title(c, `${c.t.section.grupo} · ${c.t.section.inventario}`)}
-        <Box flexDirection="row" gap={2} alignItems="center">
-          <Box flexGrow={1} />
+        <Box flexDirection="row" columnGap={2} alignItems="center">
           {tab('grupo', c.t.section.grupo)}
           {tab('inventario', c.t.section.inventario)}
           <Box flexGrow={1} />
           <Button key="split" plain dimColor label="⊞" onPress={() => act.joinParty(false)} />
         </Box>
-        {on === 'grupo' ? partyBody(c, d.party, d.working, d.campaign?.achieved === true) : inventoryBody(c, d.inventory)}
+        {on === 'grupo' ? partyBody(c, d.party, d.working, d.campaign?.achieved === true, d.fit.maxCards) : inventoryBody(c, d.inventory, d.fit.maxItems)}
       </Box>
     )
   }
   return (
     <Box key="party" flexDirection="column" gap={1}>
-      {showParty && (
-        <Box flexDirection="column">
-          {title(c, c.t.section.grupo, undefined, String(counts.grupo))}
-          {partyBody(c, d.party, d.working, d.campaign?.achieved === true)}
-        </Box>
-      )}
-      {showInv && (
-        <Box flexDirection="column">
-          {title(c, c.t.section.inventario, undefined, String(counts.inventario))}
-          {inventoryBody(c, d.inventory)}
-        </Box>
-      )}
-      {showParty && showInv && <Button key="join" plain dimColor label={c.t.join} onPress={() => act.joinParty(true)} />}
+      <Box flexDirection="column">
+        {title(c, c.t.section.grupo, undefined, String(counts.grupo))}
+        {partyBody(c, d.party, d.working, d.campaign?.achieved === true, d.fit.maxCards)}
+      </Box>
+      <Box flexDirection="column">
+        {title(c, c.t.section.inventario, undefined, String(counts.inventario))}
+        {inventoryBody(c, d.inventory, d.fit.maxItems)}
+      </Box>
+      <Button key="join" plain dimColor label={c.t.join} onPress={() => act.joinParty(true)} />
     </Box>
   )
 }
 
-const partyBody = (c: Ctx, party: readonly Member[], working: Working | null, achieved: boolean) => {
+/** O grupo: o Clawd sempre, até `maxActive` cartões em ação (o resto vira "+N") e a fileira dos que voltaram. */
+const partyBody = (c: Ctx, party: readonly Member[], working: Working | null, achieved: boolean, maxActive: number) => {
   const { Box, Text } = c.ui
   const active = party.filter(m => m.status === 'run')
   const done = party.filter(m => m.status !== 'run')
@@ -278,7 +270,7 @@ const partyBody = (c: Ctx, party: readonly Member[], working: Working | null, ac
         : { name: c.t.className.druida, cls: 'druida', sub: c.t.atCamp, status: c.t.resting, busy: false, idle: true }
   const cards: MemberArt[] = [
     main,
-    ...active.slice(0, MAX_ACTIVE).map(m => ({
+    ...active.slice(0, maxActive).map(m => ({
       name: memberName(c, m),
       cls: m.cls,
       sub: `${c.t.className[m.cls].toLowerCase()} · ${m.description}`,
@@ -286,7 +278,7 @@ const partyBody = (c: Ctx, party: readonly Member[], working: Working | null, ac
       busy: true,
     })),
   ]
-  const moreActive = Math.max(0, active.length - MAX_ACTIVE)
+  const moreActive = Math.max(0, active.length - maxActive)
   if (!c.desktop) {
     return (
       <Box flexDirection="column">
@@ -314,14 +306,14 @@ const partyBody = (c: Ctx, party: readonly Member[], working: Working | null, ac
           ),
           'members-done',
         )}
-      {active.length === 0 && done.length === 0 && <Text dimColor>{c.t.partyHint}</Text>}
     </Box>
   )
 }
 
 const RARITY_ORDER: Rarity[] = ['lendario', 'raro', 'incomum', 'comum', 'pobre']
 
-const inventoryBody = (c: Ctx, inv: Inventory) => {
+/** O inventário: o branch, e até `max` itens (ou os últimos commits, com tudo guardado). */
+const inventoryBody = (c: Ctx, inv: Inventory, max: number) => {
   const { Box, Text } = c.ui
   if (!inv.isRepo) return <Text dimColor>{c.t.notRepo}</Text>
   const head = [
@@ -332,10 +324,10 @@ const inventoryBody = (c: Ctx, inv: Inventory) => {
   ]
     .filter(Boolean)
     .join(' · ')
-  const shown = inv.items.slice(0, 8)
+  const shown = inv.items.slice(0, max)
   const delta = (added?: number, removed?: number) =>
     added === undefined ? '' : `+${added}${removed !== undefined && removed > 0 ? ` −${removed}` : ''}`
-  const recent = inv.recent ?? []
+  const recent = (inv.recent ?? []).slice(0, max)
   return (
     <Box flexDirection="column">
       <Text dimColor>⎇ {head}</Text>
@@ -349,7 +341,7 @@ const inventoryBody = (c: Ctx, inv: Inventory) => {
                 c,
                 itemsArt(
                   pxOf(c),
-                  recent.map(r => ({ name: r.subject.replace(/^w+(([^)]*))?!?:s*/, ''), rarity: 'comum' as const, glyph: '◆', diff: c.t.ago(Date.now() / 1000 - Number(r.when)), tip: `${r.hash} · ${r.subject}` })),
+                  recent.map(r => ({ name: r.subject.replace(/^\w+(\([^)]*\))?!?:\s*/, ''), rarity: 'comum' as const, glyph: '◆', diff: c.t.ago(Date.now() / 1000 - Number(r.when)), tip: `${r.hash} · ${r.subject}` })),
                   c.palette,
                 ),
                 'recent-art',
@@ -395,7 +387,7 @@ const inventoryBody = (c: Ctx, inv: Inventory) => {
             itemsArt(
               pxOf(c),
               shown.map(item => ({
-                name: item.path.split(/[\/]/).slice(-3).join('/'),
+                name: item.path.split(/[\\/]/).slice(-3).join('/'),
                 rarity: item.rarity,
                 glyph: glyphOf(item.path),
                 diff: item.rarity === 'pobre' ? c.t.deleted : delta(item.added, item.removed) || (item.code === '??' ? c.t.isNew : ''),
@@ -413,42 +405,80 @@ const inventoryBody = (c: Ctx, inv: Inventory) => {
               <Text dimColor>{delta(item.added, item.removed)}</Text>
             </Box>
           ))}
-      {inv.items.length > 8 && <Text dimColor>+{inv.items.length - 8}</Text>}
+      {inv.items.length > max && <Text dimColor>+{inv.items.length - max}</Text>}
     </Box>
   )
 }
 
-/** Como no laboratório: Mochila, Mana e Vigor em três colunas, e Grimório, Side quest e ⚙ numa linha. */
+/** As três linhas dos recursos: a mochila contra o ponto de compactação, a mana e o vigor pelo que resta. */
+export const resourceData = (c: Ctx, r: Resources | null, now: number): ResRow[] => {
+  const k = toneOf(c.palette)
+  const bag = r === null ? undefined : bagOf(r)
+  const pctText = (v: number | undefined) => (v === undefined ? '—' : `${Math.round(v)}%`)
+  const top = (r?.top ?? []).map(x => `${c.t.bagCategory[x.name.toLowerCase()] ?? x.name.toLowerCase()} ${short(x.tokens)}`).join(', ')
+  const delta = bag?.delta === undefined || bag.delta === 0 ? '' : `${bag.delta > 0 ? '▲ +' : '▼ '}${short(Math.abs(bag.delta))}`
+  const rows: ResRow[] = [
+    {
+      key: 'mochila',
+      label: c.t.footer.mochila,
+      value: bag?.percent,
+      color: bag?.state === 'transbordando' ? k.bad : bag?.state === 'pesada' ? k.warn : '#c9965f',
+      text: pctText(bag?.percent),
+      sub: bag?.percent === undefined ? '' : c.t.bag[bag.state],
+      tip: c.t.bagTip(pctText(bag?.percent), r?.compactsAt !== undefined, bag?.left === undefined ? '' : short(bag.left), delta, top),
+      pulse: bag?.state === 'transbordando',
+    },
+  ]
+  for (const [key, kind, base] of [
+    ['mana', 'five_hour', '#6cb6ec'],
+    ['vigor', 'seven_day', '#8fc46a'],
+  ] as const) {
+    const w = r?.windows.find(x => x.kind === kind)
+    const v = w === undefined ? undefined : windowOf(w, now)
+    const name = c.t.footer[key]
+    const at = w?.resetsAt !== undefined && v !== undefined && !v.refilled ? c.t.resetAt(clockOf(w.resetsAt), untilOf(w.resetsAt, now)) : ''
+    rows.push({
+      key,
+      label: name,
+      value: v?.left,
+      color: v?.level === 'critico' ? k.bad : v?.level === 'baixo' ? k.warn : base,
+      text: pctText(v?.left),
+      sub: v === undefined ? '' : v.refilled ? c.t.refilled : `${v.fast ? '⚡ ' : ''}${v.resetIn === undefined ? '' : `↻ ${countdown(v.resetIn)}`}`,
+      tip: v === undefined ? name : c.t.windowTip(name, c.t.period[key], pctText(v.left), at, v.fast, v.refilled),
+      pulse: v?.level === 'critico',
+    })
+  }
+  return rows
+}
+
+/**
+ * O rodapé, preso no fim do painel: os botões (Grimório e Compactar à esquerda,
+ * ⚙ à direita) e, por último, os recursos, um por linha, para nada se sobrepor.
+ */
 const footer = (c: Ctx, d: PaneData, act: PaneActions) => {
   const { Box, Button, Text } = c.ui
-  const u = d.usage
-  const pctOf = (v: number | undefined) => (v === undefined ? '—' : `${Math.round(v)}%`)
+  const rows = resourceData(c, d.resources, d.now)
   const on = (id: ModuleId) => isOn(d.prefs, id)
-  const grim = d.pendingInscriptions > 0 ? `${c.t.grimoire} · ${d.pendingInscriptions}` : c.t.grimoire
   return (
     <Box key="footer" flexDirection="column">
-      {c.desktop ? (
-        svg(
-          c,
-          resourcesArt(
-            pxOf(c),
-            [
-              { key: 'mochila', label: c.t.footer.mochila, value: u.context, color: '#c9965f', reset: '', tip: c.t.mochilaTip(pctOf(u.context)) },
-              { key: 'mana', label: c.t.footer.mana, value: u.mana, color: '#6cb6ec', reset: u.manaIn, tip: c.t.manaTip(pctOf(u.mana), u.manaAt) },
-              { key: 'vigor', label: c.t.footer.vigor, value: u.vigor, color: '#8fc46a', reset: u.vigorIn, tip: c.t.vigorTip(pctOf(u.vigor), u.vigorAt) },
-            ],
-            c.palette,
-          ),
-          'resources',
-        )
-      ) : (
-        <Text dimColor>{`${c.t.footer.mochila} ${pctOf(u.context)} · ${c.t.footer.mana} ${pctOf(u.mana)} · ${c.t.footer.vigor} ${pctOf(u.vigor)}`}</Text>
-      )}
-      <Box flexDirection="row" gap={2} justifyContent="space-between" alignItems="center">
-        {on('grimorio') && <Button key="grimorio" plain label={grim} onPress={act.grimoire} />}
-        {on('sideQuest') && <Button key="side-quest" plain label={c.t.sideQuest} onPress={act.sideQuest} />}
+      <Box flexDirection="row" columnGap={2} alignItems="center">
+        {on('grimorio') && (
+          <Button key="grimorio" plain label={d.pendingInscriptions > 0 ? `${c.t.grimoire} · ${d.pendingInscriptions}` : c.t.grimoire} onPress={act.grimoire}>
+            {c.t.grimoire}
+            {d.pendingInscriptions > 0 && <Text color={toneOf(c.palette).gild}>{` · ${d.pendingInscriptions}`}</Text>}
+          </Button>
+        )}
+        {on('mochila') && <Button key="compact" plain dimColor label={c.t.compactShort} onPress={act.compact} />}
+        <Box flexGrow={1} />
         <Button key="config" plain label="⚙" onPress={act.config} />
       </Box>
+      {c.desktop ? (
+        svg(c, resourceRows(pxOf(c), rows, c.palette), 'resources')
+      ) : (
+        <Text dimColor wrap="truncate-end">
+          {rows.map(r => `${r.label} ${r.text}${r.sub === '' ? '' : ` ${r.sub}`}`).join(' · ')}
+        </Text>
+      )}
     </Box>
   )
 }
@@ -459,15 +489,10 @@ export type ConfigActions = {
   back: () => void
   lang: (value: 'auto' | 'pt-BR' | 'en') => void
   skin: (skin: Skin) => void
-  profile: (profile: Profile) => void
-  toggle: (section: Section) => void
-  diary: (mode: Prefs['diary']) => void
   module: (id: ModuleId) => void
   guard: (mode: GuardMode) => void
   haiku: () => void
   setup: () => void
-  /** Atalhos que saíram do rodapé: Projetos, Sobre e Compactar. */
-  projects: () => void
   about: () => void
   compact: () => void
 }
@@ -477,9 +502,9 @@ const check = (on: boolean) => (on ? '☑' : '☐')
 
 /** Os módulos por lugar: o que aparece no chat, no painel, as ferramentas e a proteção. */
 const MODULE_GROUPS: { row: 'rowChat' | 'rowPanel' | 'rowTools' | 'rowGuard'; ids: ModuleId[] }[] = [
-  { row: 'rowChat', ids: ['diario', 'faixa'] },
-  { row: 'rowPanel', ids: ['painel', 'campanha', 'comemoracao'] },
-  { row: 'rowTools', ids: ['grimorio', 'mochila', 'sideQuest', 'projetos'] },
+  { row: 'rowChat', ids: ['diario', 'faixa', 'recibo'] },
+  { row: 'rowPanel', ids: ['painel', 'campanha'] },
+  { row: 'rowTools', ids: ['mochila', 'grimorio'] },
   { row: 'rowGuard', ids: ['guarda'] },
 ]
 
@@ -519,10 +544,9 @@ export const configView = (c: Ctx, prefs: Prefs, langOption: string, act: Config
   const modulesTip = MODULES.map(m => `${c.t.module[m.id][0]}: ${c.t.module[m.id][1]}${m.tokens ? ` · ✦ ${c.t.tokens}` : ''}`).join('\n')
   return (
     <Box flexDirection="column" gap={1}>
-      <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" columnGap={2} flexWrap="wrap">
         <Button key="back" plain label={c.t.back} onPress={act.back} />
         <Box flexGrow={1} />
-        {isOn(prefs, 'projetos') && <Button key="projects" plain dimColor label={c.t.projects} onPress={act.projects} />}
         {isOn(prefs, 'mochila') && <Button key="mochila" plain dimColor label={c.t.compactShort} onPress={act.compact} />}
         <Button key="about" plain dimColor label={c.t.about} onPress={act.about} />
         <Button key="setup-open" plain dimColor label={c.t.setupOpen} onPress={act.setup} />
@@ -544,30 +568,6 @@ export const configView = (c: Ctx, prefs: Prefs, langOption: string, act: Config
         c.t.modules,
         MODULE_GROUPS.map(g => line(c.t[g.row], g.ids.map(mod))),
         modulesTip,
-      )}
-      {cat('painel', 'painel', c.t.catPanel, [
-        line(
-          c.t.profileTitleShort,
-          (['completo', 'foco', 'minimo', 'personalizado'] as const).map(p => (
-            <Button key={`profile-${p}`} plain dimColor={prefs.profile !== p} label={`${radio(prefs.profile === p)} ${c.t.profile[p]}`} onPress={() => act.profile(p)} />
-          )),
-        ),
-        line(
-          c.t.showShort,
-          SECTIONS.map(s => <Button key={`show-${s}`} plain dimColor={!isShown(prefs, s)} label={`${check(isShown(prefs, s))} ${c.t.section[s]}`} onPress={() => act.toggle(s)} />),
-        ),
-      ])}
-      {cat(
-        'diario',
-        'diario',
-        c.t.diaryMode,
-        [
-          line(c.t.readsRow, [
-            <Button key="diary-agrupado" plain dimColor={prefs.diary !== 'agrupado'} label={`${radio(prefs.diary === 'agrupado')} ${c.t.grouped}`} onPress={() => act.diary('agrupado')} />,
-            <Button key="diary-separado" plain dimColor={prefs.diary !== 'separado'} label={`${radio(prefs.diary === 'separado')} ${c.t.separate}`} onPress={() => act.diary('separado')} />,
-          ]),
-        ],
-        c.t.diaryHint,
       )}
       {cat(
         'protecao',
