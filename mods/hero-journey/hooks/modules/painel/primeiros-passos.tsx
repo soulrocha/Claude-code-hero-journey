@@ -1,13 +1,14 @@
-// Primeiros passos: aparece sozinho na primeira vez. Pergunta a língua, se a
-// pessoa usa um vault (onde e qual a pasta de entrada) e oferece cadastrar a
-// pasta atual como projeto. As respostas viram as opções do mod (as mesmas de
-// /config). O ai-memory não pede pasta: o grimório grava nele pelo MCP, quando
-// ele está conectado. Sem vault ou sem ai-memory, a tela recomenda os dois.
+// Primeiros passos: aparece sozinho na primeira vez. Pergunta a língua e se a
+// pessoa usa um vault (onde e qual a pasta de entrada, digitando ou pelo
+// seletor de pasta do sistema). As respostas viram as opções do mod (as mesmas
+// de /config). O ai-memory não pede pasta: o grimório grava nele pelo MCP, quando
+// ele está conectado. Sem vault, a tela recomenda o Obsidian; o ai-memory é
+// sempre lembrado, para quem não tem e para quem já usa e quer apoiar o autor.
 
 import type { RenderElement } from 'claude-code'
 
 import type { Setup } from '../../../types'
-import { parade, stepBadge } from '../../core/polish-art'
+import { parade, stepBadge } from '../../core/art'
 import type { Ctx } from '../../core/ui'
 import { inputOf, pxOf, svg, title } from '../../core/ui'
 import type { Dests } from '../grimorio/grimorio'
@@ -17,7 +18,11 @@ export type SetupActions = {
   answer: (yes: boolean) => void
   path: (value: string) => void
   inbox: (value: string) => void
-  addProject: () => void
+  /** O seletor de pasta do sistema, para o vault e para a pasta de entrada. */
+  pickVault: () => void
+  pickInbox: () => void
+  /** Abre no Explorer/Finder a pasta onde o grimório deixa as decisões. */
+  openDecisions: () => void
   done: () => void
 }
 
@@ -31,7 +36,6 @@ export const setupView = (
   setup: Setup,
   langOption: string,
   paths: Dests,
-  hasProject: boolean,
   act: SetupActions,
 ): RenderElement => {
   const { Box, Button, Link, Text } = c.ui
@@ -69,24 +73,39 @@ export const setupView = (
           <Button key="setup-vault-sim" plain label={`${radio(yes)} ${c.t.setupYes}`} onPress={() => act.answer(true)} />
           <Button key="setup-vault-nao" plain label={`${radio(said === 'nao')} ${c.t.setupNo}`} onPress={() => act.answer(false)} />
         </Box>
+        {/* O campo e, ao lado, o seletor de pasta do sistema. Onde não há campo (mobile), também não há seletor: */}
+        {/* o diálogo abriria no computador, longe de quem está no celular. */}
         {yes && Input !== undefined && (
-          <Input
-            key="setup-vault-path"
-            placeholder={c.t.setupPathVault}
-            value={paths.vault}
-            submitLabel={c.t.setupSave}
-            onSubmit={(value: string) => act.path(value)}
-          />
+          <Box flexDirection="row" gap={1} alignItems="center">
+            <Box flexGrow={1}>
+              <Input
+                key="setup-vault-path"
+                placeholder={c.t.setupPathVault}
+                value={paths.vault}
+                submitLabel={c.t.setupSave}
+                onSubmit={(value: string) => act.path(value)}
+              />
+            </Box>
+            <Button key="setup-vault-pick" plain label={c.t.setupPick} onPress={act.pickVault} />
+          </Box>
         )}
         {yes && paths.vault !== '' && <Text color="success">{c.t.setupSaved(paths.vault)}</Text>}
         {yes && paths.vault !== '' && Input !== undefined && (
-          <Input
-            key="setup-vault-inbox"
-            placeholder={c.t.setupPathInbox}
-            value={paths.inbox ?? 'Inbox'}
-            submitLabel={c.t.setupSave}
-            onSubmit={(value: string) => act.inbox(value)}
-          />
+          <Box flexDirection="row" gap={1} alignItems="center">
+            <Box flexGrow={1}>
+              <Input
+                key="setup-vault-inbox"
+                placeholder={c.t.setupPathInbox}
+                value={paths.inbox ?? 'Inbox'}
+                submitLabel={c.t.setupSave}
+                onSubmit={(value: string) => act.inbox(value)}
+              />
+            </Box>
+            <Button key="setup-inbox-pick" plain label={c.t.setupPick} onPress={act.pickInbox} />
+          </Box>
+        )}
+        {yes && paths.vault !== '' && Input !== undefined && (
+          <Button key="setup-open-decisions" plain dimColor label={c.t.openDecisions} onPress={act.openDecisions} />
         )}
         {said === 'nao' && <Text dimColor>{c.t.setupSkipped}</Text>}
         {paths.vault === '' && (
@@ -103,8 +122,15 @@ export const setupView = (
           {c.desktop && svg(c, stepBadge(3, paths.memory !== undefined, c.palette), 'step-3')}
           <Text bold>{c.t.setupMemoryTitle}</Text>
         </Box>
+        {/* Com o ai-memory conectado, o crédito continua: um convite a apoiar quem fez. */}
         {paths.memory !== undefined ? (
-          <Text color="success">{c.t.setupMemoryOk}</Text>
+          <Box flexDirection="column">
+            <Text color="success">{c.t.setupMemoryOk}</Text>
+            <Text dimColor wrap="wrap">
+              {c.t.setupMemoryThanks}
+            </Text>
+            <Link href={AI_MEMORY_URL}>{c.t.setupMemoryStar}</Link>
+          </Box>
         ) : (
           <Box flexDirection="column">
             <Text dimColor wrap="wrap">
@@ -114,15 +140,6 @@ export const setupView = (
           </Box>
         )}
       </Box>
-      {!hasProject && (
-        <Box key="setup-project" flexDirection="column">
-          <Box flexDirection="row" gap={1} alignItems="center">
-            {c.desktop && svg(c, stepBadge(4, false, c.palette), 'step-4')}
-            <Text bold>{c.t.setupProject}</Text>
-          </Box>
-          <Button key="setup-add-project" plain label={c.t.projAddCwd} onPress={act.addProject} />
-        </Box>
-      )}
       {setup.msg !== undefined && <Text color="warning">{setup.msg}</Text>}
       <Button key="setup-done" variant="primary" label={c.t.setupDone} onPress={act.done} />
     </Box>

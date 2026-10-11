@@ -2,7 +2,7 @@
 
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { crab } from '../hooks/core/art'
+import { crabAt } from '../hooks/core/art'
 import { agentClass } from '../hooks/core/classes'
 import { DICT } from '../hooks/core/i18n'
 import { detect, mentionsPrivate } from '../hooks/modules/grimorio/grimorio'
@@ -118,20 +118,17 @@ test('QA 4: o Haiku não roda sozinho; só no clique do botão', { options: { la
   await card.unmount()
 })
 
-test('QA 5: a saída de uma linha escondida no grupo também some', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('QA 5: sem o agrupamento próprio, a saída de cada ferramenta continua à vista', { options: { language: 'pt-BR' } }, async ($, on) => {
   on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: 'x', structuredPatch: [] } }) as never)
   on('ui.render', { component: 'ToolResult' }, () => ({ type: 'Text', props: {}, children: ['saída do motor'] }) as never)
   for (const id of ['r1', 'r2']) {
     await $.tool.call({ tool: 'Edit', tool_use_id: id, file_path: '/repo/src/a.ts', old_string: 'a', new_string: 'b' } as never)
   }
-  const result = (id: string) =>
-    $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'ToolResult', requestId: id, props: { tool_use_id: id, tool: 'Edit', output: 'ok', isErrored: false } })
-  const hidden = await result('r2')
-  expect(await hidden.find({ text: /saída do motor/ })).toBeUndefined()
-  await hidden.unmount()
-  const terminal = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolResult', requestId: 'r2', props: { tool_use_id: 'r2', tool: 'Edit', output: 'ok', isErrored: false } })
-  expect(await terminal.find({ text: /saída do motor/ })).toBeDefined()
-  await terminal.unmount()
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolResult', requestId: 'r2', props: { tool_use_id: 'r2', tool: 'Edit', output: 'ok', isErrored: false } })
+    expect(await ui.find({ text: /saída do motor/ })).toBeDefined()
+    await ui.unmount()
+  }
 })
 
 test('QA 6: o guarda pergunta antes de um comando que escreve no .env', { options: { language: 'pt-BR' } }, async ($, on) => {
@@ -152,14 +149,12 @@ test('QA 6: o guarda pergunta antes de um comando que escreve no .env', { option
   expect(asked).toBe(1)
 })
 
-test('QA 11: a comemoração funciona com a campanha desligada', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('QA 11: o recibo do turno funciona com a campanha desligada', { options: { language: 'pt-BR' } }, async ($, on) => {
   engine(on as never)
-  on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: 'x', structuredPatch: [] } }) as never)
-  const toasts: string[] = []
-  on('ui.toast', ((_: unknown, e: { text: string }) => {
-    toasts.push(e.text)
-    return { value: undefined }
-  }) as never)
+  // O app desktop desenha (e hospeda a sessão pelo SDK, com isInteractive falso): o recibo aparece.
+  let surfaces: string[] = ['desktop']
+  on('session.surfaces', () => ({ value: surfaces }) as never)
+  on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: 'x', structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+b'] }] } }) as never)
 
   const p = await $.ui.mount(pane)
   await p.press({ key: 'config' })
@@ -169,8 +164,17 @@ test('QA 11: a comemoração funciona com a campanha desligada', { options: { la
   await $.prompt.submit({ text: 'Uma missão', wait: false } as never)
   await $.turn.start({ text: 'Uma missão', turnId: 't1' } as never)
   await $.tool.call({ tool: 'Edit', tool_use_id: 'e1', file_path: '/repo/a.ts', old_string: 'a', new_string: 'b' } as never)
-  await $.turn.complete(complete('t1', 'Feito'))
-  expect(toasts.some(t => t.includes('Missão cumprida'))).toBe(true)
+  const done = (await $.turn.complete(complete('t1', 'Feito'))) as { text: string }
+  expect(done.text).toContain('Missão cumprida: Feito')
+  expect(done.text).toContain('Artífice · 1 ação · +1 −1')
+
+  // Num `claude -p` nada desenha: o texto do turno continua sendo a resposta.
+  surfaces = []
+  await $.prompt.submit({ text: 'Outra missão', wait: false } as never)
+  await $.turn.start({ text: 'Outra missão', turnId: 't2' } as never)
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'e2', file_path: '/repo/b.ts', old_string: 'a', new_string: 'b' } as never)
+  const headless = (await $.turn.complete(complete('t2', 'Outra'))) as { text: string }
+  expect(headless.text).toBe('')
 })
 
 describe('QA: regras puras', () => {
@@ -279,7 +283,7 @@ describe('Auditoria de falsos positivos (2026-10-09)', () => {
   })
 
   test('as estrelas do druida ficam dentro do quadro do Clawd sem acessório', async () => {
-    const { source } = crab('druida', 40, 'escuro', 'x')
+    const source = crabAt('druida', 'escuro', 0, 0, 40, false)
     const [x0, , w] = (/viewBox="([^"]+)"/.exec(source)?.[1] ?? '').split(' ').map(Number)
     const xs = [...source.matchAll(/<text class="glow"[^>]*? x="([\d.]+)"/g)].map(m => Number(m[1]))
     expect(xs.length).toBe(2)
@@ -304,4 +308,53 @@ describe('Auditoria de falsos positivos (2026-10-09)', () => {
     expect(await after.find({ key: 'grimorio' })).toBeDefined()
     await after.unmount()
   })
+})
+
+test('/clear, /resume e /branch recarregam as preferências guardadas (o session.start não roda de novo)', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const kept = memStore(on as never)
+  on('session.usage', usage)
+  on('config.list', () => ({ value: [] }) as never)
+  // A pessoa escolheu a pele Sóbrio e o modo chefe; o /clear zerou o estado desta sessão.
+  kept.set('prefs', { partyJoined: true, skin: 'sobrio', modules: {}, guardMode: 'chefe', grimorioHaiku: false })
+  kept.set('setupDone', true)
+  // Sem hooks de settings por baixo, o do teste é o fundo da cadeia.
+  on('classic.SessionStart', () => ({}) as never)
+  await $.classic.SessionStart({ source: 'clear' } as never)
+  const ui = await $.ui.mount(pane)
+  await ui.press({ key: 'config' })
+  expect((await ui.find({ key: 'skin-sobrio' }))?.text).toContain('◉')
+  expect((await ui.find({ key: 'guard-chefe' }))?.text).toContain('◉')
+  await ui.unmount()
+})
+
+test('revisão do Devin: depois de uma compactação que esvazia a mochila, o cartão de compactar sai', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const kept = memStore(on as never)
+  kept.set('setupDone', true)
+  let tokens = 150_000
+  const breakdown = { categories: [], autoCompactThreshold: 160_000, isAutoCompactEnabled: true }
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens, window: 200_000, breakdown }, rateLimits: [] } }) as never)
+  on('config.list', () => ({ value: [] }) as never)
+  on('classic.SessionStart', () => ({}) as never)
+  on('session.compact', () => ({ messages: [{ role: 'user', text: 'resumo', toolUses: [] }], tokensBefore: 150_000, tokensAfter: 30_000 }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Box', props: {}, children: [] }) as never)
+  const band = {
+    plugin: PLUGIN,
+    surface: 'desktop',
+    component: 'AbovePrompt',
+    requestId: 'band',
+    props: { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
+  } as const
+
+  // 150k de 160k: a mochila passa de 85% e o cartão entra.
+  await $.classic.SessionStart({ source: 'resume' } as never)
+  const before = await $.ui.mount(band)
+  expect(await before.find({ key: 'card-now' })).toBeDefined()
+  await before.unmount()
+
+  // O Claude Code compacta sozinho: a próxima leitura traz a mochila em 30k e o cartão sai.
+  tokens = 30_000
+  await $.classic.SessionStart({ source: 'resume' } as never)
+  const after = await $.ui.mount(band)
+  expect(await after.find({ key: 'card-now' })).toBeUndefined()
+  await after.unmount()
 })

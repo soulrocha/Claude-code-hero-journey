@@ -5,7 +5,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { Palette, Skin } from '../../types'
 import type { Art } from './art'
-import { heroTitle } from './hero-art'
+import { heroTitle } from './art'
 import type { Dict } from './i18n'
 
 export type Ui = ReturnType<EngineInterface['ui']['resolve']>
@@ -14,7 +14,7 @@ type DesktopUi = Extract<Ui, { Svg: unknown }>
 export const GITHUB_URL = 'https://github.com/soulrocha/Claude-code-hero-journey'
 /** O LinkedIn do Saulo, no "Sobre". */
 export const LINKEDIN_URL = 'https://www.linkedin.com/in/soulrocha'
-export const VERSION = '0.4.0'
+export const VERSION = '0.5.0'
 
 export type Ctx = {
   ui: Ui
