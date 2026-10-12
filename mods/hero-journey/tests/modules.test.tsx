@@ -76,21 +76,23 @@ test('guarda, diálogo: Editar no chat bloqueia e leva o rascunho ao prompt', { 
   expect(filled).toBe('Sobre a mudança em .env.homologacao: ')
 })
 
-test('guarda, chefe: os rótulos do Guardião do Cofre; em inglês também', { options: { language: 'en' } }, async ($, on) => {
+test('guarda: o dragão barra em inglês também; no ⚙ só Perguntar e Só avisar', { options: { language: 'en' } }, async ($, on) => {
   mock.store(on)
   on('session.usage', usage)
-  const seen: { options?: string[] } = {}
-  on('tool.call', { tool: 'AskUserQuestion' }, answering('Open the gate', seen))
+  const seen: { question?: string; options?: string[] } = {}
+  on('tool.call', { tool: 'AskUserQuestion' }, answering('Approve', seen))
   on('tool.call', { tool: 'Edit' }, edited)
 
   const ui = await $.ui.mount(pane)
   await ui.press({ key: 'config' })
-  await ui.press({ key: 'guard-chefe' })
-  expect((await ui.find({ key: 'guard-chefe' }))?.text).toContain('◉')
+  expect((await ui.find({ key: 'guard-dialogo' }))?.text).toContain('◉ Ask')
+  expect(await ui.find({ key: 'guard-nativo' })).toBeDefined()
+  expect(await ui.find({ key: 'guard-chefe' })).toBeUndefined()
   await ui.unmount()
 
   const r = await editEnv($ as never)
-  expect(seen.options).toEqual(['Open the gate', 'Negotiate', 'Retreat'])
+  expect(seen.question).toContain('The dragon blocks .env.homologacao')
+  expect(seen.options).toEqual(['Approve', 'Edit in chat', 'Refuse'])
   expect(r.deny).toBeUndefined()
 })
 
@@ -152,61 +154,71 @@ test('campanha: mensagem abre o capítulo, o fim do turno guarda o relatório', 
   expect(saved.chapters[0]?.report?.result).toContain('12 testes passando')
   const ui = await $.ui.mount(pane)
   expect(await ui.find({ key: 'report-approve' })).toBeUndefined()
-  expect(await ui.find({ key: 'achieved' })).toBeDefined()
+  // O turno acabou: o acampamento, a sua vez e o objetivo curto saído da Missão.
+  expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain('Sua vez')
+  expect(await ui.find({ text: /^Login com Azure AD$/ })).toBeDefined()
+  // Sem o título do app, o ✦ Recalibrar fica à mão.
+  expect(await ui.find({ key: 'recalibrate' })).toBeDefined()
   await ui.unmount()
 })
 
-test('grimório: acha a decisão, mostra o cartão e só grava no Selar', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('palco: a classe da ferramenta em curso no cenário dela; na falha, tropeça', { options: { language: 'pt-BR' } }, async ($, on) => {
   mock.store(on)
   on('session.usage', usage)
-  on('session.cwd', () => ({ value: '/repo' }) as never)
-  on('turn.complete', () => ({ text: '' }) as never)
-  on('ui.render', { component: 'AbovePrompt' }, emptyBand)
-  const files: Record<string, string> = { '/repo/CLAUDE.md': '# Projeto\n' }
-  on('fs.exists', ($$, e) => ({ value: at(e) in files }) as never)
-  on('fs.read', ($$, e) => ({ value: files[at(e)] ?? '' }) as never)
-  on('fs.write', ($$, e) => {
-    const w = e as { path: string; text: string }
-    files[at(w)] = w.text
-    return { value: undefined } as never
-  })
+  on('turn.start', () => ({ turnId: 't1' }) as never)
+  on('tool.call', { tool: 'Edit' }, edited)
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: 'erro', interrupted: false }, isError: true }) as never)
 
-  await $.turn.complete({
-    turnId: 't9',
-    reason: 'answer',
-    durationMs: 1000,
-    isAborted: false,
-    answer: 'Decidimos que listas grandes paginam sempre no servidor.',
-  } as never)
-  expect(files['/repo/AGENTS.md']).toBeUndefined()
+  // Antes de qualquer ferramenta, o Aprendiz pensa no campo de treino.
+  await $.turn.start({ text: 'Implementar o login', turnId: 't1' } as never)
+  let ui = await $.ui.mount(pane)
+  expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toBe('Aprendiz pensando')
+  await ui.unmount()
 
-  await openGrimoire($)
-  const card = await $.ui.mount(band)
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
-  expect((await card.find({ key: 'grim-seal' }))?.text).toContain('Selar')
-  // Sem vault e com CLAUDE.md/AGENTS.md desmarcados, selar não grava nada e a inscrição fica.
-  await card.press({ key: 'grim-seal' })
-  expect(files['/repo/CLAUDE.md']).toBe('# Projeto\n')
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'c1', file_path: '/repo/src/login.ts', old_string: 'a', new_string: 'b' } as never)
+  ui = await $.ui.mount(pane)
+  expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toBe('Rúnico escrevendo')
+  expect(await ui.find({ text: /src\/login\.ts/ })).toBeDefined()
+  await ui.unmount()
 
-  const id = 't9-0-decidimos-que-listas-grandes-paginam-sem'
-  await card.press({ key: `dest-${id}-claudeMd` })
-  await card.press({ key: `dest-${id}-agentsMd` })
-  await card.press({ key: 'grim-seal' })
-  await card.unmount()
-
-  expect(files['/repo/CLAUDE.md']).toContain('## Decisões')
-  expect(files['/repo/CLAUDE.md']).toContain('listas grandes paginam sempre no servidor')
-  expect(files['/repo/AGENTS.md']).toContain('listas grandes paginam sempre no servidor')
+  await $.tool.call({ tool: 'Bash', tool_use_id: 'c2', command: 'npm install', description: 'Instala as dependências' } as never)
+  ui = await $.ui.mount(pane)
+  expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toBe('Engenheiro tropeçou')
+  expect(await ui.find({ text: /Instala as dependências falhou/ })).toBeDefined()
+  await ui.unmount()
 })
 
-/** Um grimório com vault em /vault e o ai-memory opcional, para os testes de gravação. */
-const grimEngine = (on: Parameters<Parameters<typeof test>[2]>[1], files: Record<string, string>, toasts: string[], vaultOk = true, writes: string[] = []) => {
-  mock.store(on)
+test('o spinner do turno diz quem age e o que faz', { options: { language: 'pt-BR' } }, async ($, on) => {
+  on('tool.call', { tool: 'Read' }, () => ({ result: { type: 'text', file: { content: '' } } }) as never)
+  let message: string | null | undefined
+  on('ui.render', { component: 'Spinner' }, ($$, e) => {
+    message = (e as { props: { message: string | null } }).props.message
+    return { type: 'Text', props: {}, children: [message ?? ''] } as never
+  })
+  const spinner = (mode: string) =>
+    $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'Spinner', requestId: 'sp', props: { word: 'Reading', message: null, suffix: '…', mode } } as never)
+
+  let ui = await spinner('thinking')
+  expect(message).toBe('Aprendiz pensando')
+  await ui.unmount()
+  await $.tool.call({ tool: 'Read', tool_use_id: 'r1', file_path: '/repo/hooks/core/art.ts' } as never)
+  ui = await spinner('tool-use')
+  expect(message).toBe('Mago lendo art.ts')
+  await ui.unmount()
+  // O que o motor não diferencia (requesting) fica com a palavra dele.
+  ui = await spinner('requesting')
+  expect(message).toBeNull()
+  await ui.unmount()
+})
+
+/** Um grimório com vault em /vault (se a opção pedir) e o ai-memory opcional, para os testes de gravação. */
+const grimEngine = (on: Parameters<Parameters<typeof test>[2]>[1], files: Record<string, string>, toasts: string[], vaultOk = true, writes: string[] = [], store: Record<string, unknown> = {}) => {
+  mock.store(on, store)
   on('session.usage', usage)
   on('session.cwd', () => ({ value: '/repo' }) as never)
   on('turn.complete', () => ({ text: '' }) as never)
   on('ui.render', { component: 'AbovePrompt' }, emptyBand)
+  on('ui.open', () => ({ value: { isPlaced: true } }) as never)
   on('ui.toast', ((_: unknown, e: { text: string }) => {
     toasts.push(e.text)
     return { value: undefined }
@@ -216,6 +228,13 @@ const grimEngine = (on: Parameters<Parameters<typeof test>[2]>[1], files: Record
   )
   on('fs.exists', ($$, e) => ({ value: at(e) in files }) as never)
   on('fs.read', ($$, e) => ({ value: files[at(e)] ?? '' }) as never)
+  on('fs.list', ($$, e) => {
+    const dir = at(e).replace(/\/$/, '')
+    const names = Object.keys(files)
+      .filter(k => k.startsWith(`${dir}/`) && !k.slice(dir.length + 1).includes('/'))
+      .map(k => ({ name: k.slice(dir.length + 1), kind: 'file', size: 0, mtimeMs: 0, isLink: false }))
+    return { value: names } as never
+  })
   // Gravação lenta, para dois cliques seguidos em Selar se cruzarem de verdade.
   on('fs.write', async ($$, e) => {
     writes.push(at(e))
@@ -226,6 +245,33 @@ const grimEngine = (on: Parameters<Parameters<typeof test>[2]>[1], files: Record
 }
 
 const answerTurn = (answer: string) => ({ turnId: 't9', reason: 'answer', durationMs: 1000, isAborted: false, answer }) as never
+const DECISION_ID = 't9-0-decidimos-que-listas-grandes-paginam-sem'
+
+test('grimório: guarda em silêncio, pergunta onde guardar a primeira decisão e só grava no Selar', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const files: Record<string, string> = {}
+  const toasts: string[] = []
+  grimEngine(on, files, toasts)
+  on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
+  await $.turn.start({ text: 'A partir de agora, sempre rode os testes antes do commit.', turnId: 't9' } as never)
+  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
+  expect(Object.keys(files)).toEqual([])
+
+  await openGrimoire($)
+  const page = await $.ui.mount(pane)
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(true)
+  // Sem vault, a decisão ainda não tem destino: a página pergunta; a regra já vai para o AGENTS.md.
+  expect(await page.find({ text: /Onde guardo suas decisões/ })).toBeDefined()
+  expect(await page.find({ text: /→ AGENTS\.md/ })).toBeDefined()
+  expect((await page.find({ key: 'grim-seal' }))?.text).toContain('Selar no grimório · 2')
+  await page.press({ key: 'grim-home-projeto' })
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
+
+  expect(files['/repo/AGENTS.md']).toContain('## Regras')
+  expect(files['/repo/AGENTS.md']).toContain('sempre rode os testes antes do commit')
+  expect(Object.keys(files).some(k => k.startsWith('/repo/docs/decisoes/') && files[k]!.includes('paginam sempre no servidor'))).toBe(true)
+  expect(toasts.some(t => t.includes('2 inscrições seladas'))).toBe(true)
+})
 
 test('grimório: duas notas com o mesmo começo não se sobrescrevem, nem a de outra sessão', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
   const day = new Date().toISOString().slice(0, 10)
@@ -234,9 +280,9 @@ test('grimório: duas notas com o mesmo começo não se sobrescrevem, nem a de o
   grimEngine(on, files, [])
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor. Decidimos que listas grandes paginam sempre no cliente.'))
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: 'grim-seal' })
-  await card.unmount()
+  const page = await $.ui.mount(pane)
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
   expect(files[`${base}.md`]).toBe('ANTIGA')
   expect(files[`${base}-2.md`]).toContain('servidor')
   expect(files[`${base}-3.md`]).toContain('cliente')
@@ -249,9 +295,9 @@ test('grimório: dois cliques seguidos em Selar gravam uma vez só', { options: 
   grimEngine(on, files, toasts, true, writes)
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await Promise.all([card.press({ key: 'grim-seal' }), card.press({ key: 'grim-seal' })])
-  await card.unmount()
+  const page = await $.ui.mount(pane)
+  await Promise.all([page.press({ key: 'grim-seal' }), page.press({ key: 'grim-seal' })])
+  await page.unmount()
   expect(writes.length).toBe(1)
   expect(toasts.filter(t => t.includes('selada')).length).toBe(1)
 })
@@ -270,18 +316,19 @@ const langEngine = (on: Parameters<Parameters<typeof test>[2]>[1]) => {
   on('command.register', () => ({ value: undefined }) as never)
   on('session.id', () => ({ value: 's1' }) as never)
   on('turn.complete', () => ({ text: '' }) as never)
+  on('fs.list', () => ({ value: [] }) as never)
   on('ui.render', { component: 'AbovePrompt' }, emptyBand)
 }
 
-for (const [language, seal] of [['en', 'Seal'], ['auto', 'Selar'], ['pt-BR', 'Selar']] as const) {
+for (const [language, seal] of [['en', 'Seal in the grimoire'], ['auto', 'Selar no grimório'], ['pt-BR', 'Selar no grimório']] as const) {
   test(`língua ${language}: a fixada vence o sistema; auto segue o sistema`, { options: { language } }, async ($, on) => {
     langEngine(on)
     await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true } as never)
     await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
     await openGrimoire($)
-  const card = await $.ui.mount(band)
-    expect((await card.find({ key: 'grim-seal' }))?.text).toContain(seal)
-    await card.unmount()
+    const page = await $.ui.mount(pane)
+    expect((await page.find({ key: 'grim-seal' }))?.text).toContain(seal)
+    await page.unmount()
   })
 }
 
@@ -291,160 +338,101 @@ test('grimório: vault da configuração que não existe não recebe gravação'
   grimEngine(on, files, toasts, false)
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: 'grim-seal' })
+  const page = await $.ui.mount(pane)
+  await page.press({ key: 'grim-seal' })
   expect(Object.keys(files).some(k => k.startsWith('/nao/existe'))).toBe(false)
   expect(toasts.some(t => t.includes('A pasta não existe'))).toBe(true)
   expect(toasts.some(t => t.includes('pendente'))).toBe(true)
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
-  await card.unmount()
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(true)
+  await page.unmount()
 })
 
-test('grimório: falha parcial deixa pendente só o destino que falhou, e o próximo Selar tenta de novo', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+test('grimório: o ai-memory que falha deixa a inscrição pendente, e o próximo Selar tenta de novo', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
   const files: Record<string, string> = {}
   const toasts: string[] = []
   grimEngine(on, files, toasts)
   on('tool.list', () => ({ value: [{ name: 'mcp__ai-memory__memory_write_page', description: '', mcp: true }] }) as never)
   let mode: 'erro' | 'excecao' | 'ok' = 'erro'
   let calls = 0
-  on('mcp.call', () => {
+  on('mcp.call', ($$, e) => {
+    if ((e as { tool: string }).tool !== 'memory_write_page') return { value: { content: [{ type: 'text', text: '{}' }], isError: false } } as never
     calls += 1
     if (mode === 'excecao') return { deny: 'servidor caiu' } as never
     return { value: { content: [{ type: 'text', text: mode === 'erro' ? 'disco cheio' : '{}' }], isError: mode === 'erro' } } as never
   })
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
-  const id = 't9-0-decidimos-que-listas-grandes-paginam-sem'
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: `dest-${id}-aiMemory` })
+  const page = await $.ui.mount(pane)
+  // Um destino só: o clique troca vault → projeto → ai-memory.
+  await page.press({ key: `dest-${DECISION_ID}` })
+  await page.press({ key: `dest-${DECISION_ID}` })
+  expect((await page.find({ key: `dest-${DECISION_ID}` }))?.text).toContain('ai-memory')
 
-  // isError do MCP: o vault grava, o ai-memory fica pendente com o motivo.
-  await card.press({ key: 'grim-seal' })
-  const vaultNotes = () => Object.keys(files).filter(k => k.startsWith('/vault/Inbox/decisao-pendente-'))
-  expect(vaultNotes().length).toBe(1)
+  await page.press({ key: 'grim-seal' })
   expect(toasts.some(t => t.includes('pendente') && t.includes('disco cheio'))).toBe(true)
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
-
-  // Exceção do MCP: continua pendente, e o vault não é gravado de novo.
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(true)
   mode = 'excecao'
-  await card.press({ key: 'grim-seal' })
-  expect(vaultNotes().length).toBe(1)
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
-
-  // MCP de volta: grava só o que faltava e a inscrição sai da lista.
+  await page.press({ key: 'grim-seal' })
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(true)
   mode = 'ok'
-  await card.press({ key: 'grim-seal' })
-  await card.unmount()
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
   expect(calls).toBe(3)
-  expect(vaultNotes().length).toBe(1)
+  expect(Object.keys(files).filter(k => k.startsWith('/vault/')).length).toBe(0)
   expect(toasts.some(t => t.includes('1 inscrição selada'))).toBe(true)
 })
 
-const DECISION_ID = 't9-0-decidimos-que-listas-grandes-paginam-sem'
-
-test('grimório: sem vault e sem ai-memory, só CLAUDE.md e AGENTS.md, desmarcados, com a dica', { options: { language: 'pt-BR' } }, async ($, on) => {
-  grimEngine(on, {}, [])
-  on('tool.list', () => ({ value: [] }) as never)
-  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
-  await openGrimoire($)
-  const card = await $.ui.mount(band)
-  expect((await card.find({ key: `dest-${DECISION_ID}-claudeMd` }))?.text).toContain('☐')
-  expect((await card.find({ key: `dest-${DECISION_ID}-agentsMd` }))?.text).toContain('☐')
-  expect(await card.find({ key: `dest-${DECISION_ID}-vaultDecisao` })).toBeUndefined()
-  expect(await card.find({ key: `dest-${DECISION_ID}-aiMemory` })).toBeUndefined()
-  expect(await card.find({ text: /configure um vault ou o ai-memory/ })).toBeDefined()
-  await card.unmount()
-})
-
-test('grimório: Selar sem destino visível marcado não grava nem some', { options: { language: 'pt-BR' } }, async ($, on) => {
-  const files: Record<string, string> = {}
+test('grimório: toda chamada ao ai-memory leva o workspace do marcador e o projeto do remoto', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+  const files: Record<string, string> = { '/home/eu/.ai-memory.toml': 'workspace = "pessoal"\n\n[recall]\ndefault_global = true\n' }
   const toasts: string[] = []
   grimEngine(on, files, toasts)
-  on('tool.list', () => ({ value: [] }) as never)
-  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
-  await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: 'grim-seal' })
-  expect(Object.keys(files)).toEqual([])
-  expect(toasts.some(t => t.includes('Marque ao menos um destino'))).toBe(true)
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
-  await card.unmount()
-})
-
-test('grimório: sugestão escondida não segura a inscrição selada no CLAUDE.md', { options: { language: 'pt-BR' } }, async ($, on) => {
-  const files: Record<string, string> = {}
-  const toasts: string[] = []
-  grimEngine(on, files, toasts)
-  on('tool.list', () => ({ value: [] }) as never)
-  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
-  await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: `dest-${DECISION_ID}-claudeMd` })
-  await card.press({ key: 'grim-seal' })
-  await card.unmount()
-  expect(files['/repo/CLAUDE.md']).toContain('listas grandes paginam sempre no servidor')
-  expect(toasts.some(t => t.includes('1 inscrição selada'))).toBe(true)
-  const again = await $.ui.mount(band)
-  expect(await seen(again, /paginam sempre no servidor/)).toBe(false)
-  await again.unmount()
-})
-
-test('grimório: com vault, a dica não aparece', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
-  grimEngine(on, {}, [])
-  on('tool.list', () => ({ value: [] }) as never)
-  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
-  await openGrimoire($)
-  const card = await $.ui.mount(band)
-  // Busca pelo texto: o `find` por key não acha um Text.
-  expect(await card.find({ text: /configure um vault ou o ai-memory/ })).toBeUndefined()
-  expect((await card.find({ key: `dest-${DECISION_ID}-vaultDecisao` }))?.text).toContain('☑')
-  await card.unmount()
-})
-
-test('grimório: com o MCP do ai-memory, a dica não aparece', { options: { language: 'pt-BR' } }, async ($, on) => {
-  grimEngine(on, {}, [])
+  mock.env(on, { HOME: '/home/eu' })
+  on('process.run', ($$, e) => {
+    const argv = (e as { argv: readonly string[] }).argv.join(' ')
+    if (argv === 'git remote get-url origin') return { value: { exitCode: 0, stdout: 'https://github.com/soulrocha/Claude-code-hero-journey.git\n', stderr: '' } } as never
+    return { value: { exitCode: 1, stdout: '', stderr: '' } } as never
+  })
   on('tool.list', () => ({ value: [{ name: 'mcp__ai-memory__memory_write_page', description: '', mcp: true }] }) as never)
+  const args: Record<string, unknown>[] = []
+  on('mcp.call', ($$, e) => {
+    args.push((e as { args: Record<string, unknown> }).args)
+    return { value: { content: [{ type: 'text', text: '{}' }], isError: false } } as never
+  })
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  expect(await card.find({ text: /configure um vault ou o ai-memory/ })).toBeUndefined()
-  expect((await card.find({ key: `dest-${DECISION_ID}-aiMemory` }))?.text).toContain('☐')
-  await card.unmount()
+  const page = await $.ui.mount(pane)
+  await page.press({ key: `dest-${DECISION_ID}` })
+  await page.press({ key: `dest-${DECISION_ID}` })
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
+  expect(args.length).toBeGreaterThan(0)
+  for (const a of args) expect(a).toMatchObject({ workspace: 'pessoal', project: 'soulrocha-claude-code-hero-journey' })
 })
 
-test('grimório: MCP que cai entre o cartão e o Selar deixa o ai-memory pendente, com aviso', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+test('grimório: MCP que cai antes do Selar deixa a inscrição pendente; com ele de volta, grava', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
   const files: Record<string, string> = {}
   const toasts: string[] = []
   grimEngine(on, files, toasts)
   let mcpOn = true
   on('tool.list', () => ({ value: mcpOn ? [{ name: 'mcp__ai-memory__memory_write_page', description: '', mcp: true }] : [] }) as never)
   let calls = 0
-  on('mcp.call', () => {
-    calls += 1
+  on('mcp.call', ($$, e) => {
+    if ((e as { tool: string }).tool === 'memory_write_page') calls += 1
     return { value: { content: [{ type: 'text', text: '{}' }], isError: false } } as never
   })
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: `dest-${DECISION_ID}-aiMemory` })
+  const page = await $.ui.mount(pane)
+  await page.press({ key: `dest-${DECISION_ID}` })
+  await page.press({ key: `dest-${DECISION_ID}` })
   mcpOn = false
-  await card.press({ key: 'grim-seal' })
-  expect(Object.keys(files).filter(k => k.startsWith('/vault/Inbox/')).length).toBe(1)
+  await page.press({ key: 'grim-seal' })
   expect(calls).toBe(0)
   expect(toasts.some(t => t.includes('continua pendente'))).toBe(true)
-  // Enquanto o MCP está fora, o destino pendente fica à vista, esperando.
-  await card.unmount()
-  const waiting = await $.ui.mount(band)
-  expect(await waiting.find({ text: /⏳ ai-memory: indisponível agora/ })).toBeDefined()
-  await waiting.unmount()
-  // Com o MCP de volta, o próximo Selar grava só o que faltava.
   mcpOn = true
-  const again = await $.ui.mount(band)
-  expect((await again.find({ key: `dest-${DECISION_ID}-aiMemory` }))?.text).toContain('☑')
-  await again.press({ key: 'grim-seal' })
-  await again.unmount()
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
   expect(calls).toBe(1)
-  expect(Object.keys(files).filter(k => k.startsWith('/vault/Inbox/')).length).toBe(1)
 })
 
 test('grimório: pasta de entrada do /config que sai do vault não recebe gravação', { options: { language: 'pt-BR', vaultPath: '/vault', vaultInbox: '../fora' } }, async ($, on) => {
@@ -454,52 +442,166 @@ test('grimório: pasta de entrada do /config que sai do vault não recebe grava�
   on('tool.list', () => ({ value: [] }) as never)
   await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: 'grim-seal' })
+  const page = await $.ui.mount(pane)
+  await page.press({ key: 'grim-seal' })
   expect(Object.keys(files)).toEqual([])
   expect(toasts.some(t => t.includes('precisa ser uma subpasta'))).toBe(true)
-  expect(await seen(card, /paginam sempre no servidor/)).toBe(true)
-  await card.unmount()
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(true)
+  await page.unmount()
 })
 
-test('grimório: preferência vai ao perfil do ai-memory pelo MCP; sem MCP o destino não aparece', { options: { language: 'pt-BR' } }, async ($, on) => {
-  const files: Record<string, string> = {}
-  grimEngine(on, files, [])
+test('grimório: Desfazer tira a linha do AGENTS.md e devolve a regra para guardar', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const files: Record<string, string> = { '/repo/AGENTS.md': '# Projeto\n' }
+  const toasts: string[] = []
+  grimEngine(on, files, toasts)
   on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
-  let mcpOn = false
-  on('tool.list', () => ({ value: mcpOn ? [{ name: 'mcp__ai-memory__memory_write_page', description: 'pass `scope: "profile"` for a preference', mcp: true }] : [] }) as never)
-  const calls: { server: string; tool: string; args: Record<string, unknown> }[] = []
-  on('mcp.call', ($$, e) => {
-    calls.push(e as never)
-    return { value: { content: [{ type: 'text', text: '{}' }], isError: false } } as never
-  })
-  await $.turn.start({ text: 'Prefiro respostas curtas, sem rodeio.', turnId: 't9' } as never)
+  await $.turn.start({ text: 'A partir de agora, sempre rode os testes antes do commit.', turnId: 't9' } as never)
   await $.turn.complete(answerTurn('Feito.'))
-
-  const off = await $.ui.mount(band)
-  // O grimWhy da preferência também cita o ai-memory: procura o botão, com ☐/☑.
-  expect(await off.find({ text: /[☐☑] ai-memory/ })).toBeUndefined()
-  await off.unmount()
-
-  // A sugestão nasceu sem o MCP; com ele conectado, o destino aparece e a pessoa marca.
-  mcpOn = true
   await openGrimoire($)
-  const card = await $.ui.mount(band)
-  await card.press({ key: 'dest-t9-0-prefiro-respostas-curtas-sem-rodeio-aiMemory' })
-  await card.press({ key: 'grim-seal' })
-  await card.unmount()
-  expect(calls.length).toBe(1)
-  expect(calls[0]?.server).toBe('ai-memory')
-  expect(calls[0]?.tool).toBe('memory_write_page')
-  expect(calls[0]?.args.scope).toBe('profile')
-  expect(String(calls[0]?.args.path)).toStartWith('workflow/')
-  expect(String(calls[0]?.args.body)).toContain('Prefiro respostas curtas')
+  const page = await $.ui.mount(pane)
+  await page.press({ key: 'grim-seal' })
+  expect(files['/repo/AGENTS.md']).toContain('sempre rode os testes')
+  await page.press({ key: 'undo-t9-0-a-partir-de-agora-sempre-rode-os-testes-' })
+  await page.unmount()
+  expect(files['/repo/AGENTS.md']).not.toContain('sempre rode os testes')
+  expect(toasts.some(t => t.includes('Desfeito'))).toBe(true)
+  const again = await $.ui.mount(pane)
+  expect((await again.find({ key: 'grim-seal' }))?.text).toContain('· 1')
+  await again.unmount()
 })
 
+test('grimório: desligado no ⚙ Memória, a crônica não junta mais decisões', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+  grimEngine(on, {}, [])
+  const p = await $.ui.mount(pane)
+  await p.press({ key: 'config' })
+  await p.press({ key: 'mem-open' })
+  await p.press({ key: 'mem-cronica' })
+  await p.unmount()
+  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
+  await openGrimoire($)
+  const page = await $.ui.mount(pane)
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(false)
+  expect(await page.find({ text: /Nada para guardar/ })).toBeDefined()
+  await page.unmount()
+})
+
+test('grimório: o plano que fecha com algo anotado abre o cartão de fim de marco', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+  grimEngine(on, {}, [])
+  on('tool.call', { tool: 'TodoWrite' }, () => ({ result: {} }) as never)
+  await $.tool.call({
+    tool: 'TodoWrite',
+    tool_use_id: 'td',
+    todos: [
+      { content: 'Remapear as classes', status: 'completed', activeForm: '' },
+      { content: 'Painel com o palco', status: 'completed', activeForm: '' },
+    ],
+  } as never)
+  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
+  const card = await $.ui.mount(band)
+  expect(await card.find({ text: /Marco fechado/ })).toBeDefined()
+  expect(await card.find({ text: /2 de 2 passos/ })).toBeDefined()
+  expect((await card.find({ key: 'grim-seal' }))?.text).toContain('Selar no grimório · 1')
+  await card.unmount()
+})
+
+test('salvar progresso: a tarefa vai para o projeto (fora do git) e o Continuar a lê na sessão seguinte', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const files: Record<string, string> = {}
+  const toasts: string[] = []
+  grimEngine(on, files, toasts)
+  on('session.id', () => ({ value: 'sessao-1' }) as never)
+  on('prompt.submit', ($$, e) => ({ text: (e as { text: string }).text }) as never)
+  on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
+  on('classic.SessionStart', () => ({}) as never)
+  let compacted = false
+  on('session.compact', () => {
+    compacted = true
+    return { messages: [{ role: 'user', text: 'resumo', toolUses: [] }], tokensBefore: 180000, tokensAfter: 40000 } as never
+  })
+  let filled = ''
+  on('prompt.fill', ($$, e) => {
+    filled = (e as { text: string }).text
+    return { isFilled: true } as never
+  })
+  await $.prompt.submit({ text: 'Implementar o login com Azure AD', wait: false } as never)
+  await $.turn.start({ text: 'Implementar o login com Azure AD', turnId: 't1' } as never)
+  await $.turn.complete({ turnId: 't1', reason: 'answer', durationMs: 1000, isAborted: false, answer: '**Missão:** Login com Azure AD\n**Próximo:** abrir o PR' } as never)
+
+  // A Mochila leva ao cartão de compactar, que oferece salvar o progresso antes.
+  const p = await $.ui.mount(pane)
+  await p.press({ key: 'compact' })
+  await p.unmount()
+  const card = await $.ui.mount(band)
+  expect(await card.find({ text: /Antes, salvar o progresso/ })).toBeDefined()
+  await card.press({ key: 'card-both' })
+  await card.unmount()
+
+  const task = Object.keys(files).find(k => /^\/repo\/\.hero\/tarefas\/R-001\.md$/.test(k))
+  expect(task).toBeDefined()
+  expect(files[task!]).toContain('# R-001: Login com Azure AD')
+  expect(files[task!]).toContain('## Próximo passo\nabrir o PR')
+  expect(files['/repo/.hero/.gitignore']).toBe('*\n')
+  expect(compacted).toBe(true)
+  expect(toasts.some(t => t.includes('Progresso salvo: R-001'))).toBe(true)
+
+})
+
+test('continuar: na sessão nova, o acampamento lista a tarefa salva e leva ao prompt o pedido de retomá-la', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const task = [
+    '---',
+    'id: R-003',
+    'status: em-andamento',
+    'projeto: repo',
+    'atualizado: 2026-10-11 18:40',
+    '---',
+    '',
+    '# R-003: Login com Azure AD',
+    '',
+    '## Objetivo',
+    'Implementar o login.',
+    '',
+    '## Próximo passo',
+    'abrir o PR',
+    '',
+    '## Como verificar',
+    'npm test',
+    '',
+    '## Já tentado e falhou',
+    '- (vazio)',
+    '',
+    '## Log',
+    '- 2026-10-11 18:40 | pc-casa | Claude Code | 4 ações',
+    '',
+  ].join('\n')
+  const files: Record<string, string> = { '/repo/.hero/tarefas/R-003.md': task, '/repo/.hero/tarefas/R-004.md': task.replace('em-andamento', 'concluida').replace(/R-003/g, 'R-004') }
+  grimEngine(on, files, [], true, [], { setupDone: true })
+  on('classic.SessionStart', () => ({}) as never)
+  let filled = ''
+  on('prompt.fill', ($$, e) => {
+    filled = (e as { text: string }).text
+    return { isFilled: true } as never
+  })
+  await $.classic.SessionStart({ source: 'clear' } as never)
+  const camp = await $.ui.mount(pane)
+  expect(await camp.find({ text: /Login com Azure AD/ })).toBeDefined()
+  expect(await camp.find({ text: /próximo: abrir o PR/ })).toBeDefined()
+  // A tarefa concluída não aparece para continuar.
+  expect(await camp.find({ key: 'cont-go-R-004' })).toBeUndefined()
+  // Sem ai-memory, a dica de continuar em outro agente aparece aqui, quando faz sentido.
+  expect(await camp.find({ text: /O ai-memory faz isso/ })).toBeDefined()
+  await camp.press({ key: 'cont-go-R-003' })
+  await camp.unmount()
+  expect(filled).toContain('Continue a tarefa "Login com Azure AD"')
+  expect(filled).toContain('R-003.md')
+})
 
 test('mochila: Compactar agora só com o Claude parado', { options: { language: 'pt-BR' } }, async ($, on) => {
   mock.store(on)
   on('session.usage', usage)
+  let filled = ''
+  on('prompt.fill', ($$, e) => {
+    filled = (e as { text: string }).text
+    return { isFilled: true } as never
+  })
   on('ui.render', { component: 'AbovePrompt' }, emptyBand)
   let compacted = ''
   on('session.compact', ($$, e) => {
@@ -507,14 +609,21 @@ test('mochila: Compactar agora só com o Claude parado', { options: { language: 
     return { messages: [{ role: 'user', text: 'resumo', toolUses: [] }], tokensBefore: 180000, tokensAfter: 40000 } as never
   })
 
+  // A Mochila do rodapé é o botão de compactar.
   const p = await $.ui.mount(pane)
-  await p.press({ key: 'config' })
-  await p.press({ key: 'mochila' })
+  await p.press({ key: 'compact' })
   await p.unmount()
 
+  // Trabalhando, o Compactar leva o /compact ao prompt em vez de compactar.
   const busy = await $.ui.mount({ ...band, props: { ...band.props, isWorking: true } })
-  expect(await busy.find({ key: 'card-now' })).toBeUndefined()
+  await busy.press({ key: 'card-now' })
+  expect(filled).toStartWith('/compact ')
+  expect(compacted).toBe('')
   await busy.unmount()
+  await $.ui.mount(pane).then(async x => {
+    await x.press({ key: 'compact' })
+    await x.unmount()
+  })
 
   const idle = await $.ui.mount(band)
   await idle.press({ key: 'card-now' })

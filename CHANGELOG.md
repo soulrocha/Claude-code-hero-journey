@@ -2,6 +2,43 @@
 
 As mudanças de cada versão. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.6.0] - 2026-10-11 (ainda não publicada)
+
+O Clawd ganhou 19 classes, o painel virou um palco e o grimório passou a salvar o progresso para continuar depois, em qualquer agente. O mapa das classes está em [docs/classes.md](docs/classes.md).
+
+### Adicionado
+- **19 classes**, uma por família de tarefa do Claude (o Mago lê, o Rúnico escreve código, o Bruxo caça bugs, o Rei faz commit e PR…), cada uma com o Clawd sem fundo nas poses de trabalho e de falha e com o seu cenário. Comando que só lê vira Mago, navegador vira Ladino, Figma vira Pintor, agendamento vira Cronomante.
+- **Palco** no topo do painel: a classe em ação no cenário dela, o Aprendiz pensando ou o acampamento (acordado na sua vez, dormindo depois de 5 minutos parado). Sem plano, grupo nem inventário, o palco cresce.
+- **Grimório novo:**
+  - **Salvar progresso:** a tarefa num arquivo (no vault, em `.tarefas/<projeto>`, ou no projeto, em `.hero/tarefas`, fora do git) e, com o ai-memory, o handoff com o ID e o caminho da tarefa;
+  - **Continuar** no acampamento: as tarefas abertas e os handoffs pendentes, com um clique;
+  - **crônica** (decisões e conquistas) e **regras** (uma linha no `AGENTS.md`), um destino por inscrição, só com o **✦ Selar no grimório**, e **Desfazer**;
+  - o Sábio avisa no palco; cartões acima do prompt só no fim de um marco (plano fechado, commit, push ou PR) e antes de compactar;
+  - **⚙ Memória:** liga e desliga cada recurso e aviso; com vault e ai-memory, já vem configurado;
+  - toda chamada ao ai-memory leva o `workspace` (do `.ai-memory.toml`) e o `project` (do marcador ou do remoto do git), e cada página leva data, origem e o lembrete de conferir no código.
+- **Sobre** com a galeria das 19 classes; o tooltip de cada Clawd diz o que ele faz.
+- **Guarda:** o dragão vermelho barra o arquivo crítico e mostra a mudança. Entram na lista `appsettings.Staging.json`, `*.pfx`, `*.p12` e o estado do Terraform (`*.tfstate`).
+
+### Mudou
+- **Faixa:** uma linha, sem repetir a frase do chat; parada, diz "Sua vez"; "Painel ›" no lugar do ◈. O **spinner** diz a classe ("Mago lendo art.ts").
+- **Diário de bordo:** a linha é do mod, sem o trilho do app: o Clawd com 44 px, quem agiu e o quê, e o resultado em texto à direita, sem borda, com o símbolo sempre na mesma coluna.
+- **Mochila:** clicar nela abre o cartão de compactar, que oferece salvar o progresso antes. Saiu o botão "Compactar" do rodapé e do ⚙.
+- **Primeiros passos:** só a língua e o que foi detectado (vault e ai-memory); nada de caminho de pasta na primeira vez. A pasta de entrada vem sozinha (`00-Inbox`, se existir, senão `Inbox`).
+- **⚙:** duas categorias, Geral e Recursos; o modo da guarda e o ⚙ Memória ficam embaixo do recurso deles. "Pele" virou "Estilo".
+- **Barra inferior** sempre presa no fim do painel, com o Grimório num canto e o ⚙ no outro.
+- **README:** as 19 classes, o acampamento, o banner e a galeria com telas desenhadas pelo próprio mod.
+
+### Removido
+- **Modo chefe** da guarda (o Guardião do Cofre): quem usava passa ao Perguntar. Ficam dois modos: Perguntar e Só avisar.
+- Os modelos `.env.example`, `.env.sample` e `.env.template` saíram da lista de protegidos.
+- O campo da pasta de entrada, o seletor dela e o atalho "Abrir a pasta das decisões" dos Primeiros passos.
+- A pílula do diário, os selos dos passos, o cabeçalho antigo do grimório e as outras artes da 0.5 que nada usava.
+
+### Corrigido
+- O desfile dos Clawds no Sobre e nos Primeiros passos estava invisível: a animação dele usava a mesma classe `.hop` de uma animação dos sprites.
+- Mandar um arquivo, um e-mail ou um aviso (ações do Rei) não abre mais o cartão de marco: só commit, push, merge e PR contam.
+- No ⚙ Memória, "Trocar" agora troca a pasta do vault (antes só mudava onde as decisões caem), e o vault escolhido vale na hora, sem reiniciar.
+
 ## [0.5.0] - 2026-10-10 (ainda não publicada)
 
 A HUD ficou menor: oito módulos que respondem a "o que o Claude está fazendo", "onde estou no objetivo", "quanto fôlego tenho" e "o que precisa de mim". O porquê de cada corte está em [docs/escopo.md](docs/escopo.md).

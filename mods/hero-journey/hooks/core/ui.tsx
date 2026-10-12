@@ -14,7 +14,7 @@ type DesktopUi = Extract<Ui, { Svg: unknown }>
 export const GITHUB_URL = 'https://github.com/soulrocha/Claude-code-hero-journey'
 /** O LinkedIn do Saulo, no "Sobre". */
 export const LINKEDIN_URL = 'https://www.linkedin.com/in/soulrocha'
-export const VERSION = '0.5.0'
+export const VERSION = '0.6.0'
 
 export type Ctx = {
   ui: Ui

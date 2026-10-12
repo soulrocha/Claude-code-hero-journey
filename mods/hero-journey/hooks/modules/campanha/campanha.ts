@@ -127,9 +127,6 @@ export const closeChapter = (c: Campaign, report: Report): Campaign => ({
   chapters: c.chapters.map(ch => (ch.n === report.chapter ? { ...ch, report } : ch)),
 })
 
-export const reports = (c: Campaign | null): Report[] =>
-  (c?.chapters ?? []).map(ch => ch.report).filter((r): r is Report => r !== undefined)
-
 /** Cada campanha numa chave própria do `$.store`, para duas sessões não sobrescreverem uma à outra. */
 export const storeKey = (id: string) => `campanha:${id}`
 

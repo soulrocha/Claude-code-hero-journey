@@ -1,6 +1,6 @@
 // Preferências da HUD: os módulos que ligam e desligam, a pele e o modo da guarda.
 
-import type { ModuleId, Prefs } from '../../types'
+import type { MemoryPrefs, ModuleId, Prefs } from '../../types'
 
 /** Ordem em que o ⚙ mostra os módulos; `tokens` marca quem pode gastar. */
 export const MODULES: readonly { id: ModuleId; tokens: boolean }[] = [
@@ -14,12 +14,24 @@ export const MODULES: readonly { id: ModuleId; tokens: boolean }[] = [
   { id: 'grimorio', tokens: true },
 ]
 
+/** Tudo ligado: com vault e ai-memory detectados, é a configuração recomendada; sem eles, cada recurso usa o projeto. */
+export const DEFAULT_MEMORY: MemoryPrefs = {
+  progresso: true,
+  cronica: true,
+  regras: true,
+  lembra: true,
+  avisoPalco: true,
+  avisoMarco: true,
+  avisoCompactar: true,
+  decisoesEm: 'auto',
+}
+
 export const DEFAULT_PREFS: Prefs = {
-  partyJoined: true,
   skin: 'epico',
   modules: {},
   guardMode: 'dialogo',
   grimorioHaiku: false,
+  memory: DEFAULT_MEMORY,
 }
 
 /** Todo módulo nasce ligado; a pessoa desliga no ⚙. */
@@ -40,10 +52,30 @@ export const migratePrefs = (stored: unknown): Prefs => {
   const s = (stored ?? {}) as Partial<Prefs> & Record<string, unknown>
   const modules = Object.fromEntries(Object.entries(s.modules ?? {}).filter(([id]) => KNOWN.has(id)))
   return {
-    partyJoined: typeof s.partyJoined === 'boolean' ? s.partyJoined : DEFAULT_PREFS.partyJoined,
     skin: s.skin === 'sobrio' ? 'sobrio' : 'epico',
     modules,
-    guardMode: s.guardMode === 'nativo' || s.guardMode === 'chefe' ? s.guardMode : 'dialogo',
+    // O modo chefe saiu na 0.6: quem usava passa a ter o dragão perguntando.
+    guardMode: s.guardMode === 'nativo' ? 'nativo' : 'dialogo',
     grimorioHaiku: s.grimorioHaiku === true,
+    memory: migrateMemory(s.memory),
   }
 }
+
+export type MemoryToggle = Exclude<keyof MemoryPrefs, 'decisoesEm'>
+
+const migrateMemory = (stored: unknown): MemoryPrefs => {
+  const m = (stored ?? {}) as Partial<MemoryPrefs>
+  const flag = (k: MemoryToggle) => (typeof m[k] === 'boolean' ? (m[k] as boolean) : DEFAULT_MEMORY[k])
+  return {
+    progresso: flag('progresso'),
+    cronica: flag('cronica'),
+    regras: flag('regras'),
+    lembra: flag('lembra'),
+    avisoPalco: flag('avisoPalco'),
+    avisoMarco: flag('avisoMarco'),
+    avisoCompactar: flag('avisoCompactar'),
+    decisoesEm: m.decisoesEm === 'vault' || m.decisoesEm === 'projeto' ? m.decisoesEm : 'auto',
+  }
+}
+
+export const toggleMemory = (prefs: Prefs, k: MemoryToggle): Prefs => ({ ...prefs, memory: { ...prefs.memory, [k]: !prefs.memory[k] } })

@@ -7,7 +7,7 @@
 // (claude-code-templates, MIT, © 2025 Daniel (San) Ávila):
 // https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/mods/security
 
-import type { GuardFile, GuardMode, Lang } from '../../../types'
+import type { GuardFile, Lang } from '../../../types'
 
 /** "**" = qualquer profundidade, "*" = qualquer coisa menos "/". Do protected-paths-guard. */
 export function globToRegExp(glob: string): RegExp {
@@ -17,7 +17,12 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`(^|/)${source}$`, 'i')
 }
 
-/** Os protegidos do handoff: segredos e pipelines. */
+/**
+ * Os protegidos: só o que, mal configurado, derruba a aplicação, o banco ou a API e
+ * quase nunca se edita à mão. Lista curta de propósito: se tudo for protegido, o
+ * aviso perde o peso. Segredos e ambientes (.env, appsettings de homologação e
+ * produção), pipelines e workflows, chaves e certificados, e o estado do Terraform.
+ */
 export const DEFAULT_PROTECTED: readonly string[] = [
   '.env',
   '.env.*',
@@ -30,9 +35,17 @@ export const DEFAULT_PROTECTED: readonly string[] = [
   '**/appsettings.Production.json',
   '**/appsettings.Prod.json',
   '**/appsettings.Homolog*.json',
+  '**/appsettings.Staging.json',
   '**/*.pem',
   '**/*.key',
+  '**/*.pfx',
+  '**/*.p12',
+  '**/*.tfstate',
+  '**/*.tfstate.backup',
 ]
+
+/** Os modelos de .env existem para ser editados: nunca perguntam. */
+export const DEFAULT_ALLOWED: readonly string[] = ['.env.example', '.env.sample', '.env.template']
 
 /** Uma opção de lista: texto separado por vírgula. */
 export const listOption = (value: unknown) =>
@@ -45,7 +58,7 @@ export const listOption = (value: unknown) =>
 
 export const makeGuard = (protect: readonly string[] = [], allow: readonly string[] = []) => {
   const protectedRes = [...DEFAULT_PROTECTED, ...protect].map(globToRegExp)
-  const allowRes = allow.map(globToRegExp)
+  const allowRes = [...DEFAULT_ALLOWED, ...allow].map(globToRegExp)
   return (rawPath: string) => {
     const path = rawPath.replace(/\\/g, '/')
     if (path === '' || allowRes.some(re => re.test(path))) return false
@@ -59,7 +72,7 @@ export const isProtected = makeGuard()
 // `\r?\n`: no Windows o texto chega com CRLF, e o `Code` não aceita `\r`.
 const lines = (text: string) => (text === '' ? [] : text.split(/\r?\n/))
 
-/** O diff que o modo chefe mostra, montado do input da ferramenta, sem ler o disco. */
+/** O diff que o Paladino mostra, montado do input da ferramenta, sem ler o disco. */
 export const diffOf = (path: string, input: { old_string?: unknown; new_string?: unknown; content?: unknown }): GuardFile => {
   const name = path.split(/[\\/]/).pop() ?? path
   const content = typeof input.content === 'string' ? input.content : undefined
@@ -77,10 +90,10 @@ export const diffOf = (path: string, input: { old_string?: unknown; new_string?:
   return { name, path, added: after.length, removed: before.length, diff }
 }
 
-/** Os rótulos de cada modo. A ordem importa: o primeiro é o que libera. */
-export const LABELS: Record<Lang, Record<Exclude<GuardMode, 'nativo'>, readonly [string, string, string]>> = {
-  pt: { dialogo: ['Aprovar', 'Editar no chat', 'Recusar'], chefe: ['Abrir o portão', 'Negociar', 'Recuar'] },
-  en: { dialogo: ['Approve', 'Edit in chat', 'Refuse'], chefe: ['Open the gate', 'Negotiate', 'Retreat'] },
+/** Os rótulos do diálogo. A ordem importa: o primeiro é o que libera. */
+export const LABELS: Record<Lang, readonly [string, string, string]> = {
+  pt: ['Aprovar', 'Editar no chat', 'Recusar'],
+  en: ['Approve', 'Edit in chat', 'Refuse'],
 }
 
 export type Verdict = 'liberar' | 'negociar' | 'recusar'
