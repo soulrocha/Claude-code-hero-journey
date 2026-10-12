@@ -14,28 +14,29 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
 
-import type { Campaign, Card, DiaryEntry, Destination, GuardFile, Inscription, Lang, Member, ModuleId, Palette, Prefs } from '../types'
-import { agentClass, classOf, patchStats, summaryOf } from './core/classes'
+import type { Campaign, Card, DiaryEntry, GuardFile, Inscription, Lang, Member, ModuleId, Palette, Prefs, Progress, Written } from '../types'
+import { agentClass, baseName, classOf, delivers, patchStats, summaryOf } from './core/classes'
 import { TONE } from './core/art'
 import { DICT, looksPortuguese, resolveLang } from './core/i18n'
-import { isWindows, joinPath, openArgv, pickArgvs, pickedOf, subfolderOf } from './core/pasta'
-import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule } from './core/prefs'
+import { isWindows, joinPath, openArgv, pickArgvs, pickedOf } from './core/pasta'
+import { DEFAULT_MEMORY, DEFAULT_PREFS, isOn, migratePrefs, toggleMemory, toggleModule } from './core/prefs'
 import type { Ctx } from './core/ui'
 import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, goalOf, onPrompt, prune, storeKey } from './modules/campanha/campanha'
 import { rowView } from './modules/diario/view'
 import { bandView } from './modules/faixa/view'
-import { appendDecision, available, detect, haikuPrompt, isSubfolder, memoryTool, merge, pending, toggleDest, withSuffix, writesFor } from './modules/grimorio/grimorio'
-import type { Dests, Memory, Write } from './modules/grimorio/grimorio'
-import { grimCard, grimPage } from './modules/grimorio/view'
+import { appendDecision, available, continuePrompt, cycleDest, detect, haikuPrompt, isSubfolder, kindOn, memoryTool, merge, nextTaskId, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, writesFor, writtenOf } from './modules/grimorio/grimorio'
+import type { Dests, Memory, MemoryScope, Write } from './modules/grimorio/grimorio'
+import { grimPage, marcoCard } from './modules/grimorio/view'
 import { diffOf, LABELS, listOption, makeGuard, shellTargets, verdictOf } from './modules/guarda/guarda'
-import { bossView, guardLineView } from './modules/guarda/view'
+import { guardView } from './modules/guarda/view'
 import { COMPACT_AT, compactInstruction, shouldWarn } from './modules/mochila/mochila'
-import { alertOf, bagOf, countdown, readingOf, short, warningsOf } from './modules/mochila/recursos'
+import { alertOf, bagOf, countdown, readingOf, warningsOf } from './modules/mochila/recursos'
 import type { UsageReading } from './modules/mochila/recursos'
 import { compactCard } from './modules/mochila/view'
-import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, questView, STATUS_ARGV, upsertMember } from './modules/painel/painel'
+import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, STATUS_ARGV, upsertMember } from './modules/painel/painel'
 import { setupView } from './modules/painel/primeiros-passos'
-import { aboutView, configView, mainView } from './modules/painel/view'
+import { aboutView, configView, footer, mainView, memoryView } from './modules/painel/view'
+import { layoutOf, NAP_MS, sceneOf } from './modules/painel/palco'
 import { leadOf, receiptOf } from './modules/recibo/recibo'
 
 const PANE = 'hero-journey'
@@ -43,7 +44,8 @@ const PANE_TITLE = 'Hero Journey'
 // `Task` é o nome antigo da ferramenta Agent.
 const AGENT = /^(Agent|Task)$/
 const WRITES = /^(Edit|Write|NotebookEdit)$/
-const CARD_ORDER: readonly Card[] = ['grimorio', 'compactar']
+const CARD_ORDER: readonly Card[] = ['marco', 'compactar']
+const AI_MEMORY_URL = 'https://github.com/akitaonrails/ai-memory'
 
 const lang = atom({ plugin: 'hero-journey', key: 'lang' } as const, 'en')
 const theme = atom({ plugin: 'hero-journey', key: 'theme' } as const, 'dark')
@@ -56,12 +58,13 @@ const prefs = atom({ plugin: 'hero-journey', key: 'prefs' } as const, DEFAULT_PR
 const working = atom({ plugin: 'hero-journey', key: 'working' } as const, null)
 const cards = atom({ plugin: 'hero-journey', key: 'cards' } as const, [])
 const view = atom({ plugin: 'hero-journey', key: 'view' } as const, 'main')
-const partyTab = atom({ plugin: 'hero-journey', key: 'partyTab' } as const, 'grupo')
 const campaign = atom({ plugin: 'hero-journey', key: 'campaign' } as const, null)
 const guard = atom({ plugin: 'hero-journey', key: 'guard' } as const, [])
 const refusals = atom({ plugin: 'hero-journey', key: 'refusals' } as const, [])
 const inscriptions = atom({ plugin: 'hero-journey', key: 'inscriptions' } as const, [])
-const intent = atom({ plugin: 'hero-journey', key: 'intent' } as const, '')
+const turn = atom({ plugin: 'hero-journey', key: 'turn' } as const, { busy: false })
+const progress = atom({ plugin: 'hero-journey', key: 'progress' } as const, { list: [] })
+const remembered = atom({ plugin: 'hero-journey', key: 'remembered' } as const, [])
 const setup = atom({ plugin: 'hero-journey', key: 'setup' } as const, {})
 const resources = atom({ plugin: 'hero-journey', key: 'resources' } as const, null)
 const tick = atom({ plugin: 'hero-journey', key: 'tick' } as const, 0)
@@ -88,6 +91,17 @@ let bagWarned = false
 let clock: { cancel: () => void } | undefined
 // Um Selar por vez: o segundo clique, enquanto o primeiro grava, não faz nada.
 let sealing = false
+// O "Verificar" que a pessoa digita no cartão de compactar, até salvar o progresso.
+let verifyDraft = ''
+// Os avisos do Sábio que a pessoa dispensou: o do turno (pelo turnId) e o de antes de dormir (pela hora).
+let notedDismissed = ''
+let saveDismissedAt = 0
+// O marco do último fim de turno (nome e detalhe do cartão) e o plano já celebrado (para não repetir).
+let marcoInfo = { name: '', sub: '' }
+let planCelebrated = ''
+// O texto da tarefa antes do último salvar, para o Desfazer voltar a ele.
+// Quantas notas a memória automática do Claude tem neste projeto (sem ai-memory), e onde.
+let autoNotes: { n: number; dir: string } | undefined
 
 // ---------- Ajudantes (usam `$`: o validador quer funções no topo do arquivo) ----------
 
@@ -239,33 +253,80 @@ async function grimDests($: EngineInterface): Promise<Dests> {
   return { vault: paths.vault, inbox: paths.inbox, memory: memoryTool(await $.tool.list().catch(() => [])) }
 }
 
-/** Grava uma inscrição num destino. Nota nova nunca sobrescreve outra: ganha -2, -3… */
-async function writeOne($: EngineInterface, w: Write, memory: Memory | undefined, used: Set<string>, heading: string) {
+let scopeCache: { cwd: string; scope: MemoryScope } | undefined
+
+/**
+ * O workspace e o projeto do ai-memory, como os clientes sem hooks devem achar:
+ * o `.ai-memory.toml` mais próximo (subindo da pasta da sessão), depois o da pasta
+ * do usuário; o projeto, sem marcador, sai do remoto (upstream, senão origin) e, sem
+ * remoto, do nome da pasta. Lido uma vez por pasta.
+ */
+async function memoryScope($: EngineInterface): Promise<MemoryScope> {
+  const cwd = await $.session.cwd()
+  if (scopeCache?.cwd === cwd) return scopeCache.scope
+  const readMarker = async (dir: string) => {
+    const file = joinPath(dir, '.ai-memory.toml')
+    return (await $.fs.exists(file).catch(() => false)) ? parseMarker(await $.fs.read(file).catch(() => '')) : undefined
+  }
+  let near: Partial<MemoryScope> | undefined
+  for (let dir = cwd, i = 0; i < 12 && near === undefined; i++) {
+    near = await readMarker(dir)
+    const up = dir.replace(/[\\/][^\\/]+[\\/]?$/, '')
+    if (up === dir || up === '' || /^[A-Za-z]:$/.test(up)) break
+    dir = up
+  }
+  const home = (await $.env.get('USERPROFILE').catch(() => undefined)) ?? (await $.env.get('HOME').catch(() => undefined))
+  const user = home === undefined ? undefined : await readMarker(home)
+  let project = near?.project
+  for (const remote of ['upstream', 'origin']) {
+    if (project !== undefined) break
+    const r = await $.process.run(['git', 'remote', 'get-url', remote], { timeoutMs: 5000 }).catch(() => undefined)
+    const name = r?.exitCode === 0 ? projectFromRemote(r.stdout) : ''
+    if (name !== '') project = name
+  }
+  const scope = { workspace: near?.workspace ?? user?.workspace ?? 'default', project: project ?? (safeName(projectName(cwd)) || 'default') }
+  scopeCache = { cwd, scope }
+  return scope
+}
+
+/** Uma chamada ao ai-memory com o escopo desta pasta: sem ele, as leituras falham e as escritas vão para o projeto padrão. */
+async function memoryCall($: EngineInterface, memory: { server: string }, tool: string, args: Record<string, unknown>) {
+  return $.mcp.call(memory.server, tool, { ...(await memoryScope($)), ...args })
+}
+
+/**
+ * Grava uma inscrição num destino e devolve onde, ou `undefined` quando não havia
+ * nada a gravar (a regra já estava no AGENTS.md): aí o Desfazer não tem o que tirar,
+ * e tirar apagaria a linha que já existia. Nota nova nunca sobrescreve outra: ganha -2, -3…
+ */
+async function writeOne($: EngineInterface, w: Write, memory: Memory | undefined, used: Set<string>, heading: string): Promise<string | undefined> {
   if (w.dest === 'aiMemory') {
     let p = w.path
     for (let n = 2; used.has(p); n++) p = withSuffix(w.path, n)
     used.add(p)
-    const r = await $.mcp.call(memory!.server, 'memory_write_page', { path: p, body: w.text, ...(w.scope ? { scope: w.scope } : {}) })
+    const r = await memoryCall($, memory!, 'memory_write_page', { path: p, body: w.text })
     if (r.isError) throw new Error(r.content.map(c => ('text' in c ? String(c.text) : '')).join(' ').slice(0, 200))
-    return
+    return p
   }
   if (w.append) {
     const current = (await $.fs.exists(w.path)) ? await $.fs.read(w.path) : ''
-    await $.fs.write(w.path, appendDecision(current, w.text, heading))
-    return
+    const next = appendDecision(current, w.text, heading)
+    if (next === current) return undefined
+    await $.fs.write(w.path, next)
+    return w.path
   }
   // ponytail: exists→write não é atômico; duas sessões selando no mesmo instante podem colidir.
   let p = w.path
   for (let n = 2; used.has(p) || (await $.fs.exists(p)); n++) p = withSuffix(w.path, n)
   used.add(p)
   await $.fs.write(p, w.text)
+  return p
 }
 
 /**
- * Grava as inscrições pendentes nos destinos marcados. Nada sai daqui sem o
- * clique em Selar. Uma inscrição só sai da lista quando todos os destinos
- * marcados gravaram. Se só parte gravou, ela continua pendente só com os que
- * faltam (indisponíveis ou com falha), para o próximo Selar tentar de novo.
+ * Grava as inscrições pendentes no destino de cada uma. Nada sai daqui sem o
+ * clique em Selar. Uma inscrição só sai da lista quando gravou; se o destino
+ * falhou ou sumiu, ela continua pendente para o próximo Selar tentar de novo.
  */
 async function seal($: EngineInterface) {
   // Dois cliques seguidos não gravam duas vezes.
@@ -273,7 +334,7 @@ async function seal($: EngineInterface) {
   sealing = true
   try {
     const t = DICT[await langNow($)]
-    // Inscrição sem nenhum destino marcado fica onde está, sem aviso de falha: não havia o que gravar.
+    // Inscrição sem destino fica onde está, sem aviso de falha: falta a pessoa dizer onde guardar.
     const list = pending(await read($, inscriptions)).filter(i => i.destinations.length > 0)
     if (list.length === 0) {
       if (pending(await read($, inscriptions)).length > 0) $.ui.toast(t.grimNoneMarked)
@@ -290,41 +351,29 @@ async function seal($: EngineInterface) {
     const dests = { ...found, vault }
     const used = new Set<string>()
     const missed: string[] = []
-    const sealed: Record<string, Destination[]> = {}
-    const left: Record<string, Destination[]> = {}
+    const sealed: Record<string, { ok: Inscription['destinations']; written: Written[] }> = {}
     for (const i of list) {
       const writes = writesFor(i, { repo, ...dests }, Date.now())
-      const wantsRepo = i.destinations.some(d => d === 'claudeMd' || d === 'agentsMd')
-      if (wantsRepo && !writes.some(w => w.dest === 'claudeMd' || w.dest === 'agentsMd')) $.ui.toast(t.privacyBlocked)
-      const ok: Destination[] = []
-      const failed: Destination[] = []
+      // A regra de privacidade barrou (o texto cita o vault ou um caminho pessoal): avisa, e a inscrição fica.
+      if (writes.length === 0 && i.destinations.every(d => available(d, dests))) $.ui.toast(t.privacyBlocked)
+      const written: Written[] = []
+      const ok: Inscription['destinations'] = []
       for (const w of writes) {
         try {
-          await writeOne($, w, dests.memory, used, t.decisionsHeading)
+          const at = await writeOne($, w, dests.memory, used, t.rulesHeading)
           ok.push(w.dest)
+          if (at !== undefined) written.push(writtenOf(w, at))
         } catch (err) {
-          failed.push(w.dest)
           missed.push(`${t.dest[w.dest]}: ${err instanceof Error ? err.message : String(err)}`)
         }
       }
-      // O que ficou por gravar: o que falhou e o destino marcado que agora está sem pasta ou sem MCP.
-      // Tudo o que está marcado foi visto pela pessoa (a sugestão nasce só com o disponível).
-      // O que a regra de privacidade barrou não volta: o aviso já disse por quê.
-      const rest = [...failed, ...i.destinations.filter(d => !available(d, dests))]
-      if (ok.length > 0 && rest.length === 0) sealed[i.id] = ok
-      else if (ok.length > 0) left[i.id] = rest
+      if (ok.length > 0 && ok.length === writes.length) sealed[i.id] = { ok, written }
     }
     const done = Object.keys(sealed).length
     if (done > 0) $.ui.toast(t.sealed(done))
     if (done < list.length || missed.length > 0) $.ui.toast(t.notSealed(list.length - done, missed.join('; ')))
-    await update($, inscriptions, all =>
-      all.map((i): Inscription => {
-        const ok = sealed[i.id]
-        const rest = left[i.id]
-        return ok !== undefined ? { ...i, sealed: ok } : rest !== undefined ? { ...i, destinations: rest } : i
-      }),
-    )
-    if (pending(await read($, inscriptions)).length === 0) await dropCard($, 'grimorio')
+    await update($, inscriptions, all => all.map((i): Inscription => (sealed[i.id] !== undefined ? { ...i, sealed: sealed[i.id]!.ok, written: sealed[i.id]!.written } : i)))
+    if (pending(await read($, inscriptions)).length === 0) await dropCard($, 'marco')
   } finally {
     sealing = false
   }
@@ -332,7 +381,310 @@ async function seal($: EngineInterface) {
 
 async function discard($: EngineInterface) {
   await update($, inscriptions, all => all.filter(i => i.sealed !== undefined))
-  await dropCard($, 'grimorio')
+  await dropCard($, 'marco')
+}
+
+/** Apaga um arquivo que o grimório criou (o $.fs não apaga): Remove-Item no Windows, rm no resto. */
+async function deleteFile($: EngineInterface, path: string) {
+  const argv = (await onWindows($))
+    ? ['powershell', '-NoProfile', '-NonInteractive', '-Command', 'Remove-Item -LiteralPath $env:HJ_PATH -Force']
+    : ['rm', '-f', path]
+  const r = await $.process.run(argv, { timeoutMs: 10_000, env: { HJ_PATH: path } })
+  if (r.exitCode !== 0) throw new Error(r.stderr.trim().slice(0, 160) || `exit ${r.exitCode}`)
+}
+
+/** Desfaz o que um Selar gravou e devolve a inscrição para "Para guardar". */
+async function undoSeal($: EngineInterface, id: string) {
+  const t = DICT[await langNow($)]
+  const i = (await read($, inscriptions)).find(x => x.id === id)
+  if (i?.written === undefined) return
+  const memory = (await grimDests($)).memory
+  try {
+    for (const w of i.written) {
+      if (w.mode === 'linha' && w.line !== undefined) {
+        if (await $.fs.exists(w.path)) await $.fs.write(w.path, removeLine(await $.fs.read(w.path), w.line))
+      } else if (w.mode === 'pagina') {
+        if (memory !== undefined) await memoryCall($, memory, 'memory_delete_page', { path: w.path })
+      } else await deleteFile($, w.path)
+    }
+    await update($, inscriptions, all => all.map((x): Inscription => (x.id === id ? { ...x, sealed: undefined, written: undefined } : x)))
+    $.ui.toast(t.undone)
+  } catch (err) {
+    $.ui.toast(t.notSealed(0, err instanceof Error ? err.message : String(err)))
+  }
+}
+
+/** O vault de verdade (conferido) e os destinos do grimório agora. */
+async function liveDests($: EngineInterface): Promise<Dests> {
+  const found = await grimDests($)
+  return { ...found, vault: found.vault === '' ? '' : ((await $.fs.stat(found.vault).catch(() => undefined))?.kind === 'dir' ? found.vault : '') }
+}
+
+/** Para onde o progresso vai, em palavras: "Tarefa + ai-memory", "Tarefa no vault" ou "Tarefa no projeto". */
+async function progressLabel($: EngineInterface) {
+  const t = DICT[await langNow($)]
+  const d = await grimDests($)
+  return d.vault !== '' ? (d.memory !== undefined ? t.progressDest.vaultMemory : t.progressDest.vault) : t.progressDest.project
+}
+
+/** O próximo passo: a tarefa atual do plano, a primeira pendente ou o **Próximo:** da última resposta. */
+async function nextStepNow($: EngineInterface) {
+  const list = await read($, quests)
+  const now = list.find(q => q.status === 'in_progress') ?? list.find(q => q.status === 'pending')
+  if (now !== undefined) return now.title
+  const c = await read($, campaign)
+  return [...(c?.chapters ?? [])].reverse().find(ch => ch.report?.next !== undefined)?.report?.next ?? ''
+}
+
+/**
+ * Salvar progresso: grava a tarefa (nova, ou a desta campanha atualizada) e,
+ * com o ai-memory conectado, abre o handoff para continuar em outro agente ou PC.
+ */
+async function saveProgress($: EngineInterface): Promise<boolean> {
+  const l = await langNow($)
+  const t = DICT[l]
+  const c = await read($, campaign)
+  if (c === null) {
+    $.ui.toast(t.nothingToSave)
+    return false
+  }
+  try {
+    const repo = await $.session.cwd()
+    const d = await liveDests($)
+    const home = progressHome(repo, d.vault, (await memoryScope($)).project)
+    const name = projectName(repo)
+    const known = (await $.store.get(`tarefa:${c.id}`).catch(() => undefined)) as string | undefined
+    const files = await $.fs.list(home).then(es => es.map(x => x.name)).catch(() => [] as string[])
+    const path = known !== undefined && (await $.fs.exists(known)) ? known : `${home}/${nextTaskId(files, taskPrefix(name))}.md`
+    const before = (await $.fs.exists(path)) ? await $.fs.read(path) : undefined
+    const id = /([A-Z0-9]+-\d{3})\.md$/.exec(path)?.[1] ?? nextTaskId(files, taskPrefix(name))
+    const entries = await read($, diary)
+    const inv = await read($, inventory)
+    const host = (await $.env.get('COMPUTERNAME').catch(() => undefined)) ?? (await $.env.get('HOSTNAME').catch(() => undefined)) ?? 'pc'
+    const failed = entries.filter(x => x.status === 'err').slice(-5).map(x => x.summary)
+    const task = saveTask(before === undefined ? undefined : parseTask(before), {
+      id,
+      project: name,
+      at: Date.now(),
+      title: goalOf(c),
+      objective: cutAtWord(c.objective.replace(/\s+/g, ' '), 240),
+      next: await nextStepNow($),
+      verify: verifyDraft,
+      failed,
+      logLine: [host, 'Claude Code', t.actions(entries.length), inv.recent?.[0]?.hash ?? ''].filter(Boolean).join(' | '),
+    })
+    // Sem vault, as tarefas moram no projeto: o .gitignore próprio vem antes da tarefa,
+    // para ela nunca ficar visível ao git se a gravação dele falhar.
+    if (d.vault === '' && !(await $.fs.exists(`${repo}/.hero/.gitignore`))) await $.fs.write(`${repo}/.hero/.gitignore`, '*\n')
+    await $.fs.write(path, taskText(task))
+    await $.store.set(`tarefa:${c.id}`, path)
+    let handoffId: string | undefined
+    if (d.memory !== undefined) {
+      try {
+        // O ID e o caminho da tarefa vão no resumo ("pegue a tarefa X" acha o arquivo em qualquer agente),
+        // relativo ao vault ou ao repositório: nome de usuário e pasta pessoal não saem da máquina.
+        const r = await memoryCall($, d.memory, 'memory_handoff_begin', {
+          summary: `${task.id} ${task.title}: ${task.next || task.objective} (${t.taskFile}: ${shareablePath(path, [d.vault, repo])})`.slice(0, 400),
+          next_steps: (await read($, quests)).filter(q => q.status !== 'completed').map(q => q.title).slice(0, 8),
+          open_questions: task.verify === '' ? [] : [`${t.verify}: ${task.verify}`],
+        })
+        if (r.isError) throw new Error(r.content.map(x => ('text' in x ? String(x.text) : '')).join(' ').slice(0, 160))
+        const text = r.content.map(x => ('text' in x ? String(x.text) : '')).join('')
+        handoffId = /"handoff_id"\s*:\s*"([^"]+)"/.exec(text)?.[1]
+      } catch (err) {
+        $.ui.toast(t.handoffFailed(err instanceof Error ? err.message : String(err)))
+      }
+    }
+    await update($, progress, s => ({ ...s, saved: { at: Date.now(), path, id: task.id, handoffId, created: before === undefined, before } }))
+    verifyDraft = ''
+    $.ui.toast(t.progressDone(task.id))
+    await refreshProgress($)
+    return true
+  } catch (err) {
+    $.ui.toast(t.progressFailed(err instanceof Error ? err.message : String(err)))
+    return false
+  }
+}
+
+/** Desfaz o último salvar progresso: a tarefa volta ao texto de antes (ou some, se era nova) e o handoff é cancelado. */
+async function undoProgress($: EngineInterface) {
+  const t = DICT[await langNow($)]
+  const s = (await read($, progress)).saved
+  if (s === undefined) return
+  try {
+    if (s.created) await deleteFile($, s.path)
+    else if (s.before !== undefined) await $.fs.write(s.path, s.before)
+    const memory = (await grimDests($)).memory
+    if (s.handoffId !== undefined && memory !== undefined) await memoryCall($, memory, 'memory_handoff_cancel', { handoff_id: s.handoffId })
+    await update($, progress, x => ({ ...x, saved: undefined }))
+    $.ui.toast(t.undone)
+    await refreshProgress($)
+  } catch (err) {
+    $.ui.toast(t.progressFailed(err instanceof Error ? err.message : String(err)))
+  }
+}
+
+/** "ontem 18:40 · Claude Code" a partir da tarefa: a última linha do log diz quando e quem. */
+const byOf = (log: readonly string[]) => {
+  const last = log[log.length - 1] ?? ''
+  const parts = last.split('|').map(x => x.trim())
+  return { updated: parts[0] ?? '', by: parts[2] ?? '' }
+}
+
+/** O que dá para continuar: as tarefas abertas deste projeto e, com o ai-memory, os handoffs pendentes. */
+async function refreshProgress($: EngineInterface) {
+  try {
+    const repo = await $.session.cwd()
+    const d = await liveDests($)
+    const home = progressHome(repo, d.vault, (await memoryScope($)).project)
+    const list: Progress[] = []
+    for (const e of await $.fs.list(home).catch(() => [])) {
+      if (e.kind !== 'file' || !/\.md$/.test(e.name) || e.name.startsWith('_')) continue
+      const task = parseTask(await $.fs.read(`${home}/${e.name}`).catch(() => ''))
+      if (task === undefined || task.status === 'concluida') continue
+      const b = byOf(task.log)
+      list.push({ id: task.id, title: task.title, next: task.next, updated: b.updated || task.updated, by: b.by, path: `${home}/${e.name}` })
+    }
+    if (d.memory !== undefined) {
+      const r = await memoryCall($, d.memory, 'memory_handoff_list', {}).catch(() => undefined)
+      const text = r === undefined || r.isError ? '' : r.content.map(x => ('text' in x ? String(x.text) : '')).join('')
+      const parsed = (() => {
+        try {
+          return JSON.parse(text) as { handoffs?: { handoff_id?: string; id?: string; summary?: string; next_steps?: string[]; agent?: string; created_at?: string }[] }
+        } catch {
+          return {}
+        }
+      })()
+      for (const h of parsed.handoffs ?? []) {
+        const hid = h.handoff_id ?? h.id
+        if (hid === undefined) continue
+        // O handoff de uma tarefa já listada vira o dela (o Continuar também o aceita), não uma segunda linha.
+        const mine = list.find(x => x.handoffId === undefined && (h.summary ?? '').startsWith(`${x.id} `))
+        if (mine !== undefined) {
+          mine.handoffId = hid
+          continue
+        }
+        list.push({ id: hid, title: (h.summary ?? hid).split(':')[0]?.slice(0, 80) ?? hid, next: h.next_steps?.[0] ?? '', updated: (h.created_at ?? '').slice(0, 16).replace('T', ' '), by: h.agent ?? 'ai-memory', handoffId: hid })
+      }
+    }
+    list.sort((x, y) => y.updated.localeCompare(x.updated))
+    await update($, progress, s => ({ ...s, list }))
+  } catch {
+    // Sem pasta ou sem MCP agora: o Continuar fica com o que já tinha.
+  }
+}
+
+/** Continuar: pega o handoff (se for do ai-memory) e leva ao prompt o pedido de ler a tarefa e conferir antes de mexer. */
+async function continueTask($: EngineInterface, p: Progress) {
+  const l = await langNow($)
+  const memory = (await grimDests($)).memory
+  if (p.handoffId !== undefined && memory !== undefined) await memoryCall($, memory, 'memory_handoff_accept', { handoff_id: p.handoffId }).catch(() => undefined)
+  await fillOrCopy($, continuePrompt(l, p.title, p.path ?? (l === 'pt' ? 'o handoff que o ai-memory entregou' : 'the handoff ai-memory delivered')))
+}
+
+/**
+ * O que o Sábio lembra: com o ai-memory, as páginas recentes do projeto; sem ele,
+ * quantas notas a memória automática do Claude tem para esta pasta.
+ */
+async function refreshRemembered($: EngineInterface) {
+  const d = await grimDests($)
+  if (d.memory !== undefined) {
+    const r = await memoryCall($, d.memory, 'memory_recent', { limit: 4 }).catch(() => undefined)
+    const text = r === undefined || r.isError ? '' : r.content.map(x => ('text' in x ? String(x.text) : '')).join('')
+    try {
+      const parsed = JSON.parse(text) as { pages?: { path?: string; title?: string; kind?: string }[]; hits?: { path?: string; title?: string; kind?: string }[] }
+      const pages = parsed.pages ?? parsed.hits ?? []
+      await update($, remembered, () =>
+        pages.filter(p => typeof p.path === 'string').slice(0, 4).map(p => ({ kind: p.kind ?? (p.path ?? '').split('/')[0] ?? '', text: p.title ?? p.path ?? '', path: p.path ?? '' })),
+      )
+    } catch {
+      await update($, remembered, () => [])
+    }
+    autoNotes = undefined
+    return
+  }
+  await update($, remembered, () => [])
+  const homeDir = (await $.env.get('USERPROFILE').catch(() => undefined)) ?? (await $.env.get('HOME').catch(() => undefined))
+  if (homeDir === undefined) return
+  const dir = `${homeDir}/.claude/projects/${(await $.session.cwd()).replace(/[:\\/]/g, '-')}/memory`
+  const files = await $.fs.list(dir).catch(() => [])
+  const n = files.filter(f => f.kind === 'file' && /\.md$/i.test(f.name) && f.name !== 'MEMORY.md').length
+  autoNotes = files.length === 0 ? undefined : { n, dir }
+}
+
+/** "esquecer": marca a página como velha no ai-memory (sai da busca com o tempo) e some da lista. */
+async function forget($: EngineInterface, path: string) {
+  const t = DICT[await langNow($)]
+  const memory = (await grimDests($)).memory
+  if (memory !== undefined) await memoryCall($, memory, 'memory_feedback', { path, feedback: 'stale' }).catch(() => undefined)
+  await update($, remembered, list => list.filter(x => x.path !== path))
+  $.ui.toast(t.forgotten)
+}
+
+/** Sugere de novo o destino das inscrições pendentes (depois de trocar onde as decisões caem ou de ligar o vault). */
+async function resuggest($: EngineInterface) {
+  const p = await prefsNow($)
+  const d = await grimDests($)
+  await update($, inscriptions, all =>
+    all.map((i): Inscription => {
+      if (i.sealed !== undefined) return i
+      const keep = i.destinations[0] !== undefined && available(i.destinations[0], d) && p.memory.decisoesEm === 'auto'
+      const s = suggest(i.kind, d, p.memory.decisoesEm)
+      return keep ? i : { ...i, destinations: s === undefined ? [] : [s] }
+    }),
+  )
+}
+
+/**
+ * Grava o vault e acha a pasta de entrada sozinha: a do jeito PARA (00-Inbox), se
+ * existir; senão, a padrão (Inbox). Assim os Primeiros passos não perguntam por ela.
+ */
+async function setVault($: EngineInterface, folder: string) {
+  await $.config.set({ key: 'hero-journey.vaultPath', value: folder })
+  let inbox = 'Inbox'
+  for (const sub of ['00-Inbox', 'Inbox']) {
+    if ((await $.fs.stat(joinPath(folder, sub)).catch(() => undefined))?.kind === 'dir') {
+      await $.config.set({ key: 'hero-journey.vaultInbox', value: sub })
+      inbox = sub
+      break
+    }
+  }
+  // As opções só chegam ao mod na próxima carga: a sessão passa a usar o vault já.
+  paths = { vault: folder, inbox }
+}
+
+/** Escolhe (ou troca) a pasta do vault pelo seletor do sistema. Devolve se gravou. */
+async function changeVault($: EngineInterface): Promise<boolean> {
+  const t = DICT[await langNow($)]
+  const picked = await pickFolder($, t.pickVaultTitle, paths.vault)
+  if (picked === null) $.ui.toast(t.pickUnavailable)
+  if (picked === null || picked === undefined) return false
+  const folder = await checkedFolder($, picked)
+  if (folder === undefined) return false
+  await setVault($, folder)
+  await resuggest($)
+  return true
+}
+
+/** Onde as decisões caem: no projeto, ou no vault (sem vault, abre o seletor de pasta para escolher). */
+async function chooseHome($: EngineInterface, home: 'projeto' | 'vault' | 'auto') {
+  if (home === 'vault' && paths.vault === '' && !(await changeVault($))) return
+  await savePrefs($, x => ({ ...x, memory: { ...x.memory, decisoesEm: home } }))
+  await resuggest($)
+}
+
+/** O ⚙ Memória → Testar: o ai-memory responde ao memory_status? */
+async function testMemory($: EngineInterface) {
+  const t = DICT[await langNow($)]
+  const memory = (await grimDests($)).memory
+  if (memory === undefined) return
+  try {
+    const r = await $.mcp.call(memory.server, 'memory_status', {})
+    if (r.isError) throw new Error(r.content.map(x => ('text' in x ? String(x.text) : '')).join(' ').slice(0, 160))
+    $.ui.toast(t.memTestOk)
+  } catch (err) {
+    $.ui.toast(t.memTestFail(err instanceof Error ? err.message : String(err)))
+  }
 }
 
 /** Haiku: só no clique em "Resumir com Haiku" (o botão aparece com o ⚙ ligado). Gasta tokens. */
@@ -377,16 +729,16 @@ async function recalibrateGoal($: EngineInterface) {
   }
 }
 
-/** O guarda nos modos diálogo e chefe: põe os arquivos no estado, pergunta e limpa. */
-async function askGuard($: EngineInterface, files: GuardFile[], mode: 'dialogo' | 'chefe') {
+/** O Paladino pergunta: põe os arquivos no estado (o desenho lê), pergunta e limpa. */
+async function askGuard($: EngineInterface, files: GuardFile[]) {
   const l = await langNow($)
   const t = DICT[l]
-  const labels = LABELS[l][mode]
+  const labels = LABELS[l]
   const names = files.map(f => f.name).join(', ')
   await update($, guard, () => files)
   try {
-    const answer = await $.ui.ask(mode === 'chefe' ? t.bossQuestion(names) : t.guardQuestion(names), {
-      header: mode === 'chefe' ? t.bossHeader : t.guardHeader,
+    const answer = await $.ui.ask(t.guardQuestion(names), {
+      header: t.guardHeader,
       options: labels,
     })
     return verdictOf(answer, labels)
@@ -410,7 +762,7 @@ async function guardCall($: EngineInterface, tool: string, toolUseId: string, fi
     $.ui.notice(toolUseId, t.guardNotice(names))
     return undefined
   }
-  const verdict = await askGuard($, files, mode)
+  const verdict = await askGuard($, files)
   if (verdict === 'liberar') return undefined
   if (verdict === 'sem-resposta' && !interactive) return { deny: t.denyHeadless(names) }
   if (verdict === 'negociar') {
@@ -483,19 +835,10 @@ async function openFolder($: EngineInterface, path: string) {
   $.ui.toast(DICT[await langNow($)].openFailed(path))
 }
 
-/** Onde o grimório deixa as decisões: a pasta de entrada do vault, ou o próprio vault se ela não existir. */
-async function openDecisions($: EngineInterface) {
-  if (paths.vault === '') return
-  const inbox = joinPath(paths.vault, paths.inbox)
-  const stat = await $.fs.stat(inbox).catch(() => undefined)
-  await openFolder($, stat?.kind === 'dir' ? inbox : paths.vault)
-}
-
-/** O 📖 do rodapé e o /grimorio: com inscrições pendentes, o cartão do Mago sobe acima do prompt. */
-async function callMage($: EngineInterface) {
-  if (pending(await read($, inscriptions)).length === 0) return false
-  await pushCard($, 'grimorio')
-  return true
+/** O 📖 do rodapé, o "Ver e guardar" do Sábio e o /grimorio: abrem a página do grimório no painel. */
+async function openGrimoire($: EngineInterface) {
+  await refreshRemembered($)
+  await update($, view, () => 'grimorio' as const)
 }
 
 let readingTasks = false
@@ -549,47 +892,31 @@ async function windowsCulture($: EngineInterface): Promise<string | undefined> {
   }
 }
 
-/** Linhas do painel por px de Svg (o desktop desenha uma linha de texto em ~19 px). */
-const PX_PER_ROW = 19
-const rowsOf = (px: number) => Math.ceil(px / PX_PER_ROW)
-
 /**
- * O que cabe no painel para o rodapé ficar preso no fim: as linhas fixas
- * (objetivo, quests, títulos, rodapé) e quantos cartões do grupo e itens do
- * inventário cabem no que sobra. Estimativa pela altura conhecida de cada arte;
- * se nem o mínimo couber, o painel solta o rodapé e rola inteiro.
+ * O que cabe no painel para o rodapé ficar preso no fim: a altura do palco e
+ * quantos heróis e itens entram (o layoutOf do palco). Se nem o mínimo couber,
+ * o painel solta o rodapé e rola inteiro.
  */
-async function paneFit($: EngineInterface, cols: number, bodyRows: number) {
+async function paneFit($: EngineInterface, bodyRows: number) {
   const c = await read($, campaign)
-  const list = await read($, quests)
-  const q = questView(list)
-  const chapters = c?.chapters ?? []
-  const width = Math.max(10, cols - 2)
-  const goal = c === null ? 1 : Math.ceil(goalOf(c).length / width)
-  const objective = 1 + goal + (c === null ? 0 : rowsOf(36) + 2)
-  const questsPx =
-    list.length > 0
-      ? (q.done.length > 0 ? 28 : 0) + (q.current ? 48 : 0) + q.next.length * 24 + (q.mist > 0 ? 18 : 0)
-      : chapters.length === 0
-        ? PX_PER_ROW
-        : (chapters.some(ch => ch.report !== undefined) ? 28 : 0) + (chapters.some(ch => ch.report === undefined) ? 48 : 0)
-  const footer = rowsOf(3 * 18) + 2
-  // Os títulos de cada bloco, a linha das abas e o espaço de uma linha entre os quatro blocos.
-  const fixed = objective + 1 + rowsOf(questsPx) + 2 + footer + 3
-  const room = (bodyRows - fixed) * PX_PER_ROW
-  const joined = (await read($, prefs)).partyJoined
-  // Separados, o grupo e o inventário dividem o espaço, e entram o título do inventário,
-  // o ⊟ Juntar e os dois espaços entre eles (no lugar da linha das abas): três linhas a mais.
-  const share = joined ? room : (room - 3 * PX_PER_ROW) / 2
-  // Inventário: a linha do branch e a da raridade, e 24 px por item.
-  const invMin = 2 * PX_PER_ROW + 24
-  const maxItems = Math.max(0, Math.min(8, Math.floor((share - 2 * PX_PER_ROW) / 24)))
-  // Grupo: o Clawd sempre (62 px), a fileira dos que voltaram e o "+N"; 62 px por cartão em ação.
-  const maxCards = Math.max(0, Math.min(3, Math.floor((share - 62 - 30 - PX_PER_ROW) / 62)))
-  // Preso só se o mínimo de cada bloco à vista couber: nas abas, o da aba aberta; separados, os dois.
-  const tab = await read($, partyTab)
-  const pinned = joined ? share >= (tab === 'inventario' ? invMin : 62) : share >= Math.max(62, invMin)
-  return { pinned, maxItems: Math.max(1, maxItems), maxCards }
+  const goalLong = c === null ? 0 : goalOf(c).length
+  return layoutOf(bodyRows - (goalLong > 40 ? 1 : 0), {
+    goal: c !== null,
+    steps: (await read($, quests)).length,
+    party: (await read($, party)).filter(m => m.status === 'run').length,
+    items: (await read($, inventory)).items.length,
+  })
+}
+
+/** A cena do palco: a ferramenta em curso e o diário do turno, ou o acampamento (com o Sábio, quando ele tem o que dizer). */
+async function sceneNow($: EngineInterface) {
+  const id = await read($, turnId)
+  const entries = (await read($, diary)).filter(x => x.turnId === id)
+  const scene = sceneOf(await read($, turn), await read($, working), entries, Date.now())
+  if (scene.place !== 'acampamento') return scene
+  const g = await grimOnStage($)
+  const sage = scene.mode === 'wait' ? g.noted > 0 && notedDismissed !== id : scene.mode === 'sleep' ? g.saveNext !== undefined : false
+  return { ...scene, sage }
 }
 
 /** O ◈ da faixa: abre o painel se estiver fechado, fecha se estiver aberto. */
@@ -624,52 +951,19 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
         return
       }
       await say(undefined)
-      await $.config.set({ key: 'hero-journey.vaultPath', value: folder })
-    }
-    // A pasta de entrada é uma subpasta do vault que já existe. Vazia, volta ao padrão (Inbox).
-    const saveInbox = async (value: string) => {
-      const sub = value.trim().replace(/^"|"$/g, '')
-      if (!isSubfolder(sub)) {
-        await say(c.t.inboxInvalid(sub))
-        return
-      }
-      // A barra do próprio vault: no Windows, C:\\Vault\\Inbox, sem misturar com /.
-      const inboxPath = joinPath(paths.vault, sub)
-      if (sub !== '' && (await checkedFolder($, inboxPath)) === undefined) {
-        await say(c.t.folderMissing(inboxPath))
-        return
-      }
-      await say(undefined)
-      await $.config.set({ key: 'hero-journey.vaultInbox', value: sub })
+      await setVault($, folder)
     }
     return setupView(c, await read($, setup), langOption, await grimDests($), {
       lang: async value => {
         await $.config.set({ key: 'hero-journey.language', value })
       },
-      answer: async yes => {
-        await update($, setup, s => ({ ...s, vault: yes ? ('sim' as const) : ('nao' as const), msg: undefined }))
-        if (!yes) await $.config.set({ key: 'hero-journey.vaultPath', value: '' })
-      },
       path: saveVault,
-      inbox: saveInbox,
       // O seletor do sistema cai no mesmo caminho do campo: a pasta é conferida antes de salvar.
       pickVault: async () => {
         const picked = await pickFolder($, c.t.pickVaultTitle, paths.vault)
         if (picked === null) await say(c.t.pickUnavailable)
         else if (picked !== undefined) await saveVault(picked)
       },
-      pickInbox: async () => {
-        const picked = await pickFolder($, c.t.pickInboxTitle, joinPath(paths.vault, paths.inbox))
-        if (picked === null) {
-          await say(c.t.pickUnavailable)
-          return
-        }
-        if (picked === undefined) return
-        const sub = subfolderOf(paths.vault, picked)
-        if (sub === undefined) await say(c.t.pickOutside(picked))
-        else await saveInbox(sub)
-      },
-      openDecisions: () => openDecisions($),
       done: async () => {
         await $.store.set('setupDone', true)
         await update($, view, () => 'main' as const)
@@ -694,24 +988,65 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       haiku: () => savePrefs($, x => ({ ...x, grimorioHaiku: !x.grimorioHaiku })),
       setup: () => update($, view, () => 'boasVindas' as const),
       about: () => update($, view, () => 'sobre' as const),
-      compact: async () => {
-        if (await moduleOn($, 'mochila')) await pushCard($, 'compactar')
-      },
+      memory: () => update($, view, () => 'memoria' as const),
     })
   }
-  const all = await read($, inscriptions)
-  const grimActions = {
-    toggle: (id: string, dest: Destination) => update($, inscriptions, list => toggleDest(list, id, dest)),
-    seal: () => seal($),
-    discard: () => discard($),
-    haiku: p.grimorioHaiku ? () => rewriteWithHaiku($) : undefined,
-    openDecisions: () => openDecisions($),
+  if (v === 'memoria') {
+    return memoryView(c, p, {
+      dests: await liveDests($),
+      progressLabel: await progressLabel($),
+      act: {
+        toggle: k => savePrefs($, x => toggleMemory(x, k)),
+        home: where => chooseHome($, where),
+        pickVault: () => changeVault($),
+        testMemory: () => testMemory($),
+        whatIs: async () => {
+          await fillOrCopy($, AI_MEMORY_URL)
+        },
+        restore: async () => {
+          await savePrefs($, x => ({ ...x, memory: DEFAULT_MEMORY }))
+          await resuggest($)
+        },
+      },
+    }, () => update($, view, () => 'config' as const), () => savePrefs($, x => ({ ...x, grimorioHaiku: !x.grimorioHaiku })))
   }
+  const all = await read($, inscriptions)
+  const shown = pending(all).filter(i => kindOn(i.kind, p.memory))
   if (v === 'grimorio' && isOn(p, 'grimorio')) {
-    return grimPage(c, pending(all), all.filter(i => i.sealed !== undefined), await grimDests($), toMain, grimActions)
+    return grimPage(
+      c,
+      {
+        pending: shown,
+        sealed: all.filter(i => i.sealed !== undefined),
+        dests: await grimDests($),
+        memory: p.memory,
+        progress: await read($, progress),
+        progressLabel: await progressLabel($),
+        remembered: await read($, remembered),
+        autoNotes: autoNotes?.n,
+      },
+      {
+        back: toMain,
+        config: () => update($, view, () => 'memoria' as const),
+        cycle: async id => {
+          const d = await grimDests($)
+          await update($, inscriptions, list => cycleDest(list, id, d))
+        },
+        seal: () => seal($),
+        dismiss: () => discard($),
+        chooseHome: where => chooseHome($, where),
+        undoSeal: id => undoSeal($, id),
+        undoProgress: () => undoProgress($),
+        forget: path => forget($, path),
+        openNotes: async () => {
+          if (autoNotes !== undefined) await openFolder($, autoNotes.dir)
+        },
+        haiku: p.grimorioHaiku ? () => rewriteWithHaiku($) : undefined,
+      },
+    )
   }
 
-  // O relógio de 1 minuto sobe o `tick`: ler aqui inscreve o painel e a contagem do reset anda.
+  // O relógio de 1 minuto sobe o `tick`: ler aqui inscreve o painel; a contagem do reset anda e o acampamento adormece.
   await read($, tick)
   return mainView(
     c,
@@ -721,33 +1056,80 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       quests: await read($, quests),
       party: await read($, party),
       inventory: await read($, inventory),
-      partyTab: await read($, partyTab),
       // Antes da primeira leitura guardada, uma leitura só para este desenho (quem desenha não grava estado).
       resources: (await read($, resources)) ?? (await $.session.usage().then(u => readingOf(u as unknown as UsageReading, null, false)).catch(() => null)),
       now: Date.now(),
-      fit: await paneFit($, e.props.bodyColumns, e.props.scroll.bodyRows),
-      working: await read($, working),
-      pendingInscriptions: pending(all).length,
+      scene: await sceneNow($),
+      fit: await paneFit($, e.props.scroll.bodyRows),
+      pendingInscriptions: shown.length,
+      grim: await grimOnStage($),
     },
     {
-      tab: tab => update($, partyTab, () => tab),
-      joinParty: joined => savePrefs($, x => ({ ...x, partyJoined: joined })),
-      achieved: async () => {
-        const cur = await read($, campaign)
-        if (cur !== null) await saveCampaign($, { ...cur, achieved: true })
-      },
       compact: async () => {
         if (await moduleOn($, 'mochila')) await pushCard($, 'compactar')
         else $.ui.toast(c.t.off(c.t.module.mochila[0]))
       },
       recalibrate: () => recalibrateGoal($),
-      grimoire: async () => {
-        if (!(await callMage($))) await update($, view, () => 'grimorio' as const)
-      },
+      grimoire: () => openGrimoire($),
       config: () => update($, view, () => 'config' as const),
-      about: () => update($, view, () => 'sobre' as const),
+      dismissNoted: async () => {
+        notedDismissed = await read($, turnId)
+        await update($, tick, n => n + 1)
+      },
+      saveProgress: async () => {
+        await saveProgress($)
+      },
+      dismissSave: async () => {
+        saveDismissedAt = Date.now()
+        await update($, tick, n => n + 1)
+      },
+      continueTask: x => continueTask($, x),
+      continueHow: async () => {
+        await fillOrCopy($, AI_MEMORY_URL)
+      },
     },
   )
+}
+
+/** O rodapé fixo das páginas do grimório e do ⚙: recursos, Grimório num canto e ⚙ no outro. */
+async function pageFooter($: EngineInterface, c: Ctx) {
+  const p = await prefsNow($)
+  return footer(
+    c,
+    {
+      prefs: p,
+      resources: await read($, resources),
+      now: Date.now(),
+      pendingInscriptions: pending(await read($, inscriptions)).filter(i => kindOn(i.kind, p.memory)).length,
+    },
+    {
+      compact: async () => {
+        if (await moduleOn($, 'mochila')) await pushCard($, 'compactar')
+      },
+      grimoire: () => openGrimoire($),
+      config: () => update($, view, () => 'config' as const),
+    },
+  )
+}
+
+/**
+ * O grimório no palco: quantas coisas o Sábio anotou (o aviso do fim do turno),
+ * o próximo passo para o aviso de antes de dormir (quando o progresso não foi
+ * salvo desde o último turno) e o que dá para continuar.
+ */
+async function grimOnStage($: EngineInterface) {
+  const p = await prefsNow($)
+  const t = await read($, turn)
+  const prog = await read($, progress)
+  const camp = await read($, campaign)
+  const unsaved = camp !== null && (prog.saved === undefined || (t.endedAt !== undefined && prog.saved.at < t.endedAt))
+  const sleepy = p.memory.progresso && p.memory.avisoPalco && unsaved && (t.endedAt === undefined || saveDismissedAt < t.endedAt)
+  return {
+    noted: isOn(p, 'grimorio') && p.memory.avisoPalco ? pending(await read($, inscriptions)).filter(i => kindOn(i.kind, p.memory)).length : 0,
+    saveNext: sleepy ? await nextStepNow($) : undefined,
+    continueList: p.memory.progresso ? prog.list : [],
+    continueHint: (await grimDests($)).memory === undefined,
+  }
 }
 
 
@@ -782,6 +1164,7 @@ async function loadSession($: EngineInterface, restoreCampaign = true) {
   await refreshTheme($)
   await refreshInventory($)
   await refreshTasks($)
+  await refreshProgress($)
 }
 
 export const register: Register = (on, options) => {
@@ -816,7 +1199,10 @@ export const register: Register = (on, options) => {
     clock = $.clock.every(60_000, () => {
       void (async () => {
         const r = await read($, resources)
-        if (r?.windows.some(w => w.resetsAt !== undefined) === true) await update($, tick, n => n + 1)
+        const t = await read($, turn)
+        // Parado há pouco, o acampamento ainda vai adormecer: o painel precisa redesenhar.
+        const napping = !t.busy && t.endedAt !== undefined && Date.now() - t.endedAt <= NAP_MS + 60_000
+        if (r?.windows.some(w => w.resetsAt !== undefined) === true || napping) await update($, tick, n => n + 1)
       })().catch(() => {})
     })
     // Aberto sem pedido, o painel só aparece em tela larga (144 colunas).
@@ -839,10 +1225,8 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'grimorio' }, async $ => {
     const t = DICT[await langNow($)]
     if (!(await moduleOn($, 'grimorio'))) return { text: t.off(t.module.grimorio[0]) }
-    // Com inscrições pendentes, o Mago aparece acima do prompt; sem elas, o histórico no painel.
-    if (await callMage($)) return { text: `📖 ${t.grimTitle}` }
     if (!(await moduleOn($, 'painel'))) return { text: t.grimEmpty }
-    await update($, view, () => 'grimorio' as const)
+    await openGrimoire($)
     await $.ui.open({ id: PANE, title: PANE_TITLE, focus: true })
     return { text: `📖 ${t.grimTitle}` }
   })
@@ -906,7 +1290,7 @@ export const register: Register = (on, options) => {
   on('turn.start', async ($, e, next) => {
     const ran = await next(e)
     await update($, turnId, () => ran.turnId)
-    await update($, intent, () => '')
+    await update($, turn, t => ({ ...t, busy: true }))
     turnPrompts.set(ran.turnId, e.text)
     if (turnPrompts.size > 50) turnPrompts.delete(turnPrompts.keys().next().value ?? '')
     const c = await read($, campaign)
@@ -915,18 +1299,6 @@ export const register: Register = (on, options) => {
       if (linked !== c) await saveCampaign($, linked)
     }
     return ran
-  })
-
-  // A intenção: o texto que o Claude escreve antes de chamar as ferramentas
-  // (no estilo briefing-de-bordo, uma frase com o verbo na frente) vai para a faixa.
-  on('turn.step', async function* ($, e, next) {
-    const r = yield* next(e)
-    if (e.agentId === undefined && r.toolUses.length > 0 && r.answer.trim() !== '') {
-      const said = r.answer.replace(/\s+/g, ' ').trim()
-      const first = said.split(/(?<=[.!?])\s/)[0] ?? said
-      await update($, intent, () => (first.length > 160 ? `${first.slice(0, 159)}…` : first))
-    }
-    return r
   })
 
   // ---------- Grupo: subagentes (padrão do agent-flow) ----------
@@ -964,7 +1336,7 @@ export const register: Register = (on, options) => {
       const file = typeof input.file_path === 'string' ? input.file_path : typeof input.notebook_path === 'string' ? input.notebook_path : undefined
       await update($, working, () => ({ tool: e.tool, cls, summary, file }))
       const turn = await read($, turnId)
-      const entry: DiaryEntry = { id, tool: e.tool, cls, summary, turnId: turn, status: 'run', at: Date.now() }
+      const entry: DiaryEntry = { id, tool: e.tool, cls, summary, turnId: turn, status: 'run', at: Date.now(), ...(delivers(e.tool, input) ? { delivers: true } : {}) }
       await update($, diary, list => [...list, entry].slice(-300))
     }
     if (e.tool === 'TodoWrite') {
@@ -1094,6 +1466,7 @@ export const register: Register = (on, options) => {
       return ran
     }
     await update($, working, () => null)
+    await update($, turn, () => ({ busy: false, endedAt: Date.now() }))
     await refreshInventory($)
     await refreshTasks($)
     // A leitura do fim do turno entra no histórico do peso da mochila.
@@ -1124,15 +1497,27 @@ export const register: Register = (on, options) => {
     const drawn = (await $.session.surfaces().catch(() => [])).length > 0
     const receipt = isOn(p, 'recibo') && drawn ? receiptOf(report, lead === undefined ? undefined : DICT[l].className[lead], l) : undefined
 
-    // O grimório só sugere; o Haiku, se ligado no ⚙, roda no clique do botão do cartão.
+    // O grimório só sugere: junta em silêncio (o 📖 conta), o Sábio avisa no palco e, no fim de um marco, o cartão pergunta.
     if (isOn(p, 'grimorio') && e.reason === 'answer') {
-      // A sugestão nasce só com o que dá para gravar agora: assim tudo o que está marcado
-      // foi visto pela pessoa, e um destino marcado que cair depois vira pendência com aviso.
       const dests = await grimDests($)
-      const fresh = detect(answer, said, e.turnId).map(i => ({ ...i, destinations: i.destinations.filter(d => available(d, dests)) }))
-      if (fresh.length > 0) {
-        // Guarda em silêncio: o contador do rodapé avisa, e o Mago aparece quando a pessoa abre o grimório.
-        await update($, inscriptions, list => merge(list, fresh))
+      const fresh = detect(answer, said, e.turnId)
+        .filter(i => kindOn(i.kind, p.memory))
+        .map((i): Inscription => {
+          const s = suggest(i.kind, dests, p.memory.decisoesEm)
+          return { ...i, destinations: s === undefined ? [] : [s] }
+        })
+      if (fresh.length > 0) await update($, inscriptions, list => merge(list, fresh))
+      // Marco: o plano fechou agora (2 tarefas ou mais, todas feitas) ou o turno entregou um commit, push ou PR.
+      const plan = await read($, quests)
+      const planDone = plan.length >= 2 && plan.every(q => q.status === 'completed')
+      const planKey = `${c?.id ?? ''}:${plan.length}`
+      const delivered = entries.some(x => x.delivers === true && x.status === 'ok')
+      const milestone = (planDone && planCelebrated !== planKey) || delivered
+      if (planDone) planCelebrated = planKey
+      const waiting = pending(await read($, inscriptions)).filter(i => kindOn(i.kind, p.memory))
+      if (milestone && p.memory.avisoMarco && waiting.length > 0) {
+        marcoInfo = { name: c === null ? '' : goalOf(c), sub: planDone ? DICT[l].marcoPlan(plan.length, plan.length) : DICT[l].marcoCommit }
+        await pushCard($, 'marco')
       }
     }
     $.ui.invalidate('ui.render')
@@ -1162,11 +1547,23 @@ export const register: Register = (on, options) => {
     const v = await read($, view)
     const p = await prefsNow($)
     const main = v === 'main' || (v === 'grimorio' && !isOn(p, 'grimorio'))
-    // O motor não tem rolagem dentro do painel: o meio corta cartões e itens para
-    // caber, e o rodapé fica preso. Só se nem o mínimo couber o painel rola inteiro.
-    const full = main && (await paneFit($, e.props.bodyColumns, e.props.scroll.bodyRows)).pinned
+    // O motor não tem rolagem dentro do painel: o meio corta heróis e itens para
+    // caber, e o rodapé (recursos, Grimório num canto e ⚙ no outro) fica sempre preso no fim.
+    // No grimório e no ⚙ também; o Sobre e os Primeiros passos rolam inteiros.
+    const page = v === 'config' || v === 'memoria' || (v === 'grimorio' && isOn(p, 'grimorio'))
+    if (page) {
+      const c: Ctx = { ...(await ctxOf($, e.surface, e.props.bodyColumns)), ui: $.ui.resolve(e) }
+      return (
+        <Box flexDirection="column" paddingX={1} height={e.props.scroll.bodyRows}>
+          <Box key="page-body" flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
+            {body}
+          </Box>
+          {await pageFooter($, c)}
+        </Box>
+      )
+    }
     return (
-      <Box flexDirection="column" paddingX={1} height={full ? e.props.scroll.bodyRows : undefined}>
+      <Box flexDirection="column" paddingX={1} height={main ? e.props.scroll.bodyRows : undefined}>
         {body}
       </Box>
     )
@@ -1177,9 +1574,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey) return next(e)
     const p = await prefsNow($)
     const now = await read($, working)
-    const queue = (await read($, cards)).filter(card =>
-      card === 'grimorio' ? isOn(p, 'grimorio') : isOn(p, 'mochila'),
-    )
+    const queue = (await read($, cards)).filter(card => (card === 'marco' ? isOn(p, 'grimorio') && p.memory.avisoMarco : isOn(p, 'mochila')))
     const camp = await read($, campaign)
     // A faixa fica enquanto houver campanha (o objetivo em miniatura); o pet age só durante o turno.
     const away = (await read($, party)).filter(m => m.status === 'run')
@@ -1199,33 +1594,74 @@ export const register: Register = (on, options) => {
       const r = await read($, resources)
       const bag = r === null ? undefined : bagOf(r)
       const instruction = compactInstruction(await langNow($), camp, await read($, quests))
-      cardTree = compactCard(c, bag?.percent === undefined ? `${COMPACT_AT}%+` : `${bag.percent}%`, instruction, e.props.isWorking, {
-        fill: async () => {
+      const offer = camp !== null && p.memory.progresso && p.memory.avisoCompactar && isOn(p, 'grimorio')
+      // Só compactar: agora, com o Claude parado; trabalhando, leva o /compact ao prompt.
+      const only = async () => {
+        if (e.props.isWorking) {
           if (await fillOrCopy($, `/compact ${instruction}`)) await dropCard($, 'compactar')
+        } else await compactNow($)
+      }
+      cardTree = compactCard(
+        c,
+        bag?.percent === undefined ? `${COMPACT_AT}%+` : `${bag.percent}%`,
+        offer ? { task: goalOf(camp), next: await nextStepNow($), dest: await progressLabel($), onVerify: v => (verifyDraft = v) } : undefined,
+        {
+          only,
+          both: async () => {
+            if (await saveProgress($)) await only()
+          },
+          dismiss: () => dropCard($, 'compactar'),
         },
-        now: () => compactNow($),
-        dismiss: () => dropCard($, 'compactar'),
-      })
-    } else if (card === 'grimorio') {
-      cardTree = grimCard(c, pending(await read($, inscriptions)), await grimDests($), {
-        toggle: (id, dest) => update($, inscriptions, list => toggleDest(list, id, dest)),
+      )
+    } else if (card === 'marco') {
+      const waiting = pending(await read($, inscriptions)).filter(i => kindOn(i.kind, p.memory))
+      cardTree = marcoCard(c, marcoInfo.name, marcoInfo.sub, waiting, await grimDests($), {
+        cycle: async id => {
+          const d = await grimDests($)
+          await update($, inscriptions, list => cycleDest(list, id, d))
+        },
         seal: () => seal($),
-        discard: () => discard($),
-        haiku: p.grimorioHaiku ? () => rewriteWithHaiku($) : undefined,
+        dismiss: () => dropCard($, 'marco'),
+        chooseHome: where => chooseHome($, where),
       })
     }
 
     return (
       <Box flexDirection="column" gap={1}>
         {showBand &&
-          bandView(c, e.props.isWorking ? now : null, await read($, quests), camp, () => togglePane($), away, await read($, intent), alert === undefined ? undefined : c.t.bandAlert[alert.kind](alert.percent))}
+          bandView(
+            c,
+            e.props.isWorking ? now : null,
+            await read($, quests),
+            () => togglePane($),
+            away,
+            alert === undefined ? undefined : c.t.bandAlert[alert.kind](alert.percent),
+            (await sceneNow($)).mode === 'fail',
+          )}
         {cardTree}
         {below}
       </Box>
     )
   })
 
-  // Diário de bordo: o Clawd, o trilho e o resultado em cada linha, durante o turno.
+  // O spinner do turno diz quem age: "Mago lendo art.ts", "Aprendiz pensando". Vai com a faixa.
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    if (!(await moduleOn($, 'faixa'))) return next(e)
+    const t = DICT[await langNow($)]
+    const now = await read($, working)
+    const text =
+      e.props.mode === 'thinking'
+        ? `${t.className.aprendiz} ${t.classVerb.aprendiz}`
+        : e.props.mode === 'responding'
+          ? `${t.className.aprendiz} ${t.spinResponding}`
+          : e.props.mode === 'tool-use' && now !== null
+            ? `${t.className[now.cls]} ${t.classVerb[now.cls]} ${now.file === undefined ? now.summary : baseName(now.file)}`.trim()
+            : undefined
+    if (text === undefined) return next(e)
+    return next({ ...e, props: { ...e.props, message: text.length > 80 ? `${text.slice(0, 79)}…` : text } })
+  }).catch(($, e, next) => next(e))
+
+  // Diário de bordo: o Clawd da classe e o resultado em cada linha, durante o turno.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     if (e.surface !== 'desktop') return next(e)
     const p = await prefsNow($)
@@ -1241,16 +1677,14 @@ export const register: Register = (on, options) => {
     return rowView(c, entry ?? { cls: classOf(e.props.tool, input), status, summary: summaryOf(e.props.tool, input) }, row)
   })
 
-  // Guarda: a linha de arquivos (diálogo) ou o Guardião do Cofre (chefe) acima do diálogo do Claude,
+  // Guarda: o Paladino com o arquivo e a mudança acima do diálogo do Claude,
   // e a descrição de cada opção, que a ferramenta aceita e o `$.ui.ask` não passa.
   on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => {
     const files = await read($, guard)
     if (files.length === 0) return next(e)
-    const p = await prefsNow($)
-    const mode = p.guardMode === 'chefe' ? 'chefe' : 'dialogo'
     const l = await langNow($)
-    const labels = LABELS[l][mode]
-    const hints = DICT[l].guardHints[mode]
+    const labels = LABELS[l]
+    const hints = DICT[l].guardHints
     const questions = e.props.questions.map(q => {
       const opts = (q as { options?: { label: string }[] }).options
       return opts === undefined
@@ -1264,7 +1698,7 @@ export const register: Register = (on, options) => {
     const { Box } = ui
     return (
       <Box flexDirection="column" gap={1}>
-        {mode === 'chefe' ? bossView(c, files) : guardLineView(c, files)}
+        {guardView(c, files)}
         {dialog}
       </Box>
     )

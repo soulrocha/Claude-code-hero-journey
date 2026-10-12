@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-escuro.svg">
-  <img alt="Claude Code Hero Journey: Clawd, Mage, Illusionist, Artificer, Paladin, Ranger, Dwarf miner, Herald and Alchemist" src="docs/assets/banner-claro.svg" width="100%">
+  <img alt="Claude Code Hero Journey: Clawd in 19 classes (Apprentice, Mage, Hunter, Rogue, Rune Caster, Illusionist, Sage, Engineer, Witcher, King, Artificer, Oracle, Geomancer, Alchemist, Cartomancer, Summoner, Chronomancer, Paladin and Painter)" src="docs/assets/banner-claro.svg" width="100%">
 </picture>
 
 **A cozy RPG HUD for Claude Code: glance and know what Claude is doing, and never lose the objective.**
@@ -11,7 +11,7 @@
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
-[![Tests](https://img.shields.io/badge/tests-102%20passing-8fc46a)](#%EF%B8%8F-development)
+[![Tests](https://img.shields.io/badge/tests-115%20passing-8fc46a)](#%EF%B8%8F-development)
 [![License](https://img.shields.io/badge/license-MIT-d9b26a)](LICENSE)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20desktop%20app-e6b450)](#%EF%B8%8F-status-and-roadmap)
 
@@ -32,7 +32,7 @@
 
 <img alt="Animated demo: the logbook with mascots, the band above the prompt, and the pane with objective, quests, party and the mission report" src="docs/assets/demo.webp" width="100%">
 
-<sub>Reference prototype with fictional data, played at 2× speed. The real HUD draws with the app's own components, so the final look may differ slightly. The demo text is in Portuguese; the HUD also ships in English. The prototype shows CLAUDE.md and AGENTS.md ticked in the grimoire; in the HUD they come unticked.</sub>
+<sub>Reference prototype with fictional data, played at 2× speed. The real HUD draws with the app's own components, so the final look may differ slightly. The demo text is in Portuguese; the HUD also ships in English. The prototype shows CLAUDE.md and AGENTS.md ticked in the grimoire; in the HUD they come unticked. This demo is from version 0.5: the 0.6 one, with the stage and the 19 classes, ships with that version.</sub>
 
 </div>
 
@@ -40,10 +40,10 @@
 
 Long Claude Code sessions turn into a wall of text: lots of tools running, little sense of the whole. **Hero Journey** turns the session into an RPG campaign without touching Claude's classic output.
 
-- **Glance and know.** Each action gets its class (the Mage researches, the Artificer codes, the Paladin tests), with a mascot, a color and a short summary.
+- **Glance and know.** Each action gets its class (the Mage reads, the Rune Caster writes code, the Witcher hunts bugs), with Clawd dressed for the part, a color, a scene and a short summary.
 - **Never lose the objective.** The campaign objective, the steps done and the quests left stay pinned in the pane, and in miniature in the band above the prompt.
-- **Read less.** Runs of actions by the same class collapse into one line ("Artificer · 2 actions · ✓ new · ✓ +42 −8") while the turn runs.
-- **Turn lessons into achievements.** The grimoire stores technical decisions, measurable wins and AI-work preferences where they belong, always on your click.
+- **Read less.** The pane shows only what has content; the plan, party and inventory appear when they exist, and the rest of the room goes to the stage.
+- **Continue where you stopped.** The grimoire saves your progress (the task in a file, plus an ai-memory handoff when available) to continue later in any agent, and keeps decisions, achievements and rules where they belong, always on your click.
 
 ## ✨ Features
 
@@ -51,49 +51,78 @@ There are **8 modules**, each one toggled in the pane's ⚙.
 
 | | Module | What it does |
 |:-:|---|---|
-| 📜 | **Logbook** | Puts the class mascot, a colored rail and a result mark on every tool row while the turn runs. When the turn ends, the app itself folds the rows into "Ran N actions", and the receipt stays. |
-| 🎯 | **Band above the prompt** | One line: during the turn, the class Clawd and the sentence where Claude said what it is about to do; outside it, the objective trail and the subagents "on expedition". A badge shows up only when a resource runs low (🎒 Backpack 92%, 💧 Mana 8%). The ◈ opens and closes the pane. |
-| 🗺️ | **Pane** (`/hero`) | Shows the objective with its step bar, the chapter quests, the subagent party or the file inventory, and, pinned to the bottom, the buttons and the resources. |
+| 📜 | **Logbook** | On every tool row while the turn runs: the class Clawd up front (in its failure pose when something fails), who acted and on what, and the result on the right, as plain text with no border ("1.0s ✓", "+12 −3 ✓", "failed ✗"), with the mark always in the same column. When the turn ends, the app itself folds the rows into "Ran N actions", and the receipt stays. |
+| 🎯 | **Band above the prompt** | One line: during the turn, the class Clawd, who acts and the file in use, in its rarity color; with a plan, the step trail; when idle, **Your turn**, or the subagents "on expedition". It never repeats the chat sentence. The turn spinner names the class too ("Mage reading art.ts"). A badge shows up only when a resource runs low (🎒 Backpack 92%, 💧 Mana 8%). The **Panel ›** in the corner opens and closes the pane. |
+| 🗺️ | **Pane** (`/hero`) | The **stage** on top: the class at work in its own scene, the Apprentice thinking or the camp (awake on your turn, asleep when the session goes idle) → the objective, from the title the app gives the session → only when they exist: the plan, the party on expedition and the inventory → and, pinned to the bottom, the resources and the buttons. With no plan, party or inventory, the stage grows. |
 | 📖 | **Campaign** | Treats the session as a campaign: the first message sets the objective, and each message opens a chapter that closes when the turn ends. It feeds the objective bar and the receipt. Haiku can recalibrate the objective, on your click. |
 | 🧾 | **Turn receipt** | One line under the answer: who acted most, how many actions, +/−, new files, failures and the time. When the turn completes its mission without failures, the mission leads the line: "🦀 ✦ Mission complete: …". Zero tokens. |
-| 🛡️ | **Protected-file guard** | Asks before Claude touches `.env`, pipelines or production `appsettings`, terminal commands included. Three modes, including the **boss encounter** with the Vault Guardian. Fails closed. |
-| 🎒 | **Resources: Backpack, Mana and Vigor** | At the bottom of the pane, one row each. The **Backpack** measures the context up to the point where Claude Code compacts on its own, names its state (Light, Loaded, Heavy, Overflowing) and, on hover, shows last turn's weight and what is taking up room. **Mana** (5-hour window) and **Vigor** (weekly) show what is left, a live countdown to the reset, the spending pace, and warn once when they reach 10%. Past 85% of the backpack, the card sends `/compact` to your prompt or compacts right away. |
-| ✒️ | **Grimoire** | Finds the turn's decisions, wins and preferences, suggests where to store each one (vault, career, ai-memory; CLAUDE.md and AGENTS.md only if you tick them), and writes only when you click **Seal**. |
+| 🛡️ | **Protected-file guard** | A red dragon stops Claude before it touches a critical file, the kind that, misconfigured, takes down the app, the database or the API: `.env`, pipelines and workflows, production and staging `appsettings`, keys, certificates and Terraform state. It holds even in auto mode, and for terminal commands that would write those files. It shows the change and asks: Approve, Edit in chat or Refuse. The list is short on purpose, so the warning keeps its weight. Fails closed. |
+| 🎒 | **Resources: Backpack, Mana and Vigor** | At the bottom of the pane, one row each. The **Backpack** measures the context up to the point where Claude Code compacts on its own, names its state (Light, Loaded, Heavy, Overflowing) and, on hover, shows last turn's weight and what is taking up room. **Mana** (5-hour window) and **Vigor** (weekly) show what is left, a live countdown to the reset, the spending pace, and warn once when they reach 10%. Past 85% of the backpack, a card above the prompt offers to save progress and compact; clicking the Backpack in the footer opens the same card any time. |
+| ✒️ | **Grimoire** | The Sage keeps three things: **save progress** (the task in a file and an ai-memory handoff, to **Continue** later in any agent or PC), the **chronicle** (decisions and achievements, in the vault or `docs/decisoes`) and the **rules** (one line in `AGENTS.md`). It gathers silently during the turn, nudges on the stage and only asks above the prompt at a milestone and before compacting. Each inscription has one destination, nothing is written until **✦ Seal in the grimoire**, and a seal can be undone. |
 
-Beyond the modules, the HUD speaks **English and Portuguese** (it follows Claude's language, or you pin one) and has **two skins**: **Epic** (a WoW-style quest log with ◆ ornaments and "!" and "?" marks) and **Sober**. Both follow the light or dark theme.
+Beyond the modules, the HUD speaks **English and Portuguese** (it follows Claude's language, or you pin one) and has **two styles**: **Epic** (a WoW-style quest log with ◆ ornaments and "!" and "?" marks) and **Sober**. Both follow the light or dark theme.
 
 ### Gallery
 
 <table>
   <tr>
-    <td width="50%"><img alt="Boss encounter: the Vault Guardian shows the protected files' diffs" src="docs/assets/telas/chefe.webp"><br><sub><b>Vault Guardian.</b> The protected files' diffs side by side, with Open the gate, Negotiate and Retreat.</sub></td>
-    <td width="50%"><img alt="Mission end: grouped logbook, grimoire card and the open mission report" src="docs/assets/telas/fim.webp"><br><sub><b>Mission end.</b> The grouped logbook and the grimoire card. The report on this screen came from the prototype and is no longer in the pane.</sub></td>
+    <td width="40%" rowspan="2"><img alt="Pane: the Illusionist in the Theater of Illusions working on a screen, with the session objective below" src="docs/assets/telas/palco.png"><br><sub><b>Stage.</b> The class at work in its scene, who acts, the file and the objective.</sub></td>
+    <td width="60%"><img alt="Protected-file guard: the red dragon, the critical-file warning and the change to .env" src="docs/assets/telas/guarda.png"><br><sub><b>Guard.</b> The dragon stops a critical file and shows the change before you choose.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img alt="Protection dialog with the file line" src="docs/assets/telas/dialogo.webp"><br><sub><b>Default protection.</b> Claude's own dialog, with the files and their +/− on top.</sub></td>
-    <td width="50%"><img alt="Sober skin on the light theme" src="docs/assets/telas/sobrio-claro.webp"><br><sub><b>Sober skin, light theme.</b> The same HUD with fewer ornaments.</sub></td>
+    <td width="60%"><img alt="Band above the prompt with the Witcher running the tests and the backpack card at 88%" src="docs/assets/telas/faixa.png"><br><sub><b>Band and backpack.</b> Who acts and the plan trail; a heavy backpack offers to save progress and compact.</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img alt="Logbook: the Mage, the Sage and the Witcher on each tool row, with the result on the right" src="docs/assets/telas/diario.png"><br><sub><b>Logbook.</b> The class Clawd on every tool row and the result on the right; on failure, it stumbles.</sub></td>
   </tr>
 </table>
 
+<sub>Screens drawn by the mod itself, with sample data. The interface is shown in Portuguese.</sub>
+
 ## 🦀 The party
 
-The pixel-art **Clawd** crabs come in nine classes, each with a hat and an animated tool. The class comes from the tool and the file or command: `npm test` is a Paladin, `azure-pipelines.yml` a Ranger, `git push` a Herald.
+The pixel-art **Clawd** crabs wear **19 classes**, one for each kind of Claude task, each with its own outfit, tool and scene, and two poses: at work and when something goes wrong. The class comes from the tool and the file or command: `npm test` is the Witcher, `azure-pipelines.yml` is the Artificer, `git push` is the King and `git status` is the Mage. The full map is in [docs/classes.md](docs/classes.md) (Portuguese).
 
 <table>
   <tr>
-    <td align="center" width="33%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/druida-escuro.svg"><img alt="Clawd druid" src="docs/assets/classes/druida-claro.svg" width="120"></picture><br><b>Clawd druid</b><br><sub>Main session, plans and tasks</sub></td>
-    <td align="center" width="33%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/mago-escuro.svg"><img alt="Mage" src="docs/assets/classes/mago-claro.svg" width="120"></picture><br><b>Mage</b><br><sub>Reading, search and research · grimoire</sub></td>
-    <td align="center" width="33%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/ilusionista-escuro.svg"><img alt="Illusionist" src="docs/assets/classes/ilusionista-claro.svg" width="120"></picture><br><b>Illusionist</b><br><sub>UI, prototypes and design</sub></td>
+    <td align="center" width="25%"><img alt="Apprentice" src="docs/assets/classes/aprendiz.svg" width="120"><br><b>Apprentice</b><br><sub>Thinks and answers · the main one</sub></td>
+    <td align="center" width="25%"><img alt="Mage" src="docs/assets/classes/mago.svg" width="120"><br><b>Mage</b><br><sub>Reads and searches the project</sub></td>
+    <td align="center" width="25%"><img alt="Hunter" src="docs/assets/classes/cacador.svg" width="120"><br><b>Hunter</b><br><sub>Researches the web</sub></td>
+    <td align="center" width="25%"><img alt="Rogue" src="docs/assets/classes/ladino.svg" width="120"><br><b>Rogue</b><br><sub>Browses websites</sub></td>
   </tr>
   <tr>
-    <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/artifice-escuro.svg"><img alt="Artificer" src="docs/assets/classes/artifice-claro.svg" width="120"></picture><br><b>Artificer</b><br><sub>Code</sub></td>
-    <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/paladino-escuro.svg"><img alt="Paladin" src="docs/assets/classes/paladino-claro.svg" width="120"></picture><br><b>Paladin</b><br><sub>Tests, lint and review</sub></td>
-    <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/patrulheiro-escuro.svg"><img alt="Ranger" src="docs/assets/classes/patrulheiro-claro.svg" width="120"></picture><br><b>Ranger</b><br><sub>Pipelines, deploys and logs</sub></td>
+    <td align="center" width="25%"><img alt="Rune Caster" src="docs/assets/classes/runico.svg" width="120"><br><b>Rune Caster</b><br><sub>Writes code</sub></td>
+    <td align="center" width="25%"><img alt="Illusionist" src="docs/assets/classes/ilusionista.svg" width="120"><br><b>Illusionist</b><br><sub>Screens and style</sub></td>
+    <td align="center" width="25%"><img alt="Sage" src="docs/assets/classes/sabio.svg" width="120"><br><b>Sage</b><br><sub>Docs and writing · keeps the grimoire</sub></td>
+    <td align="center" width="25%"><img alt="Engineer" src="docs/assets/classes/engenheiro.svg" width="120"><br><b>Engineer</b><br><sub>Terminal commands</sub></td>
   </tr>
   <tr>
-    <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/anao-escuro.svg"><img alt="Dwarf miner" src="docs/assets/classes/anao-claro.svg" width="120"></picture><br><b>Dwarf miner</b><br><sub>Databases and migrations</sub></td>
-    <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/arauto-escuro.svg"><img alt="Herald" src="docs/assets/classes/arauto-claro.svg" width="120"></picture><br><b>Herald</b><br><sub>Commit, push, PR and merge</sub></td>
-    <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/classes/alquimista-escuro.svg"><img alt="Alchemist" src="docs/assets/classes/alquimista-claro.svg" width="120"></picture><br><b>Alchemist</b><br><sub>Integrations (MCP, HTTP)</sub></td>
+    <td align="center" width="25%"><img alt="Witcher" src="docs/assets/classes/bruxo.svg" width="120"><br><b>Witcher</b><br><sub>Tests, lint and types</sub></td>
+    <td align="center" width="25%"><img alt="King" src="docs/assets/classes/rei.svg" width="120"><br><b>King</b><br><sub>Commit, PR and merge · talks to the world</sub></td>
+    <td align="center" width="25%"><img alt="Artificer" src="docs/assets/classes/artifice.svg" width="120"><br><b>Artificer</b><br><sub>Pipeline, deploy and infra</sub></td>
+    <td align="center" width="25%"><img alt="Oracle" src="docs/assets/classes/oraculo.svg" width="120"><br><b>Oracle</b><br><sub>Logs and monitoring</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img alt="Geomancer" src="docs/assets/classes/geomante.svg" width="120"><br><b>Geomancer</b><br><sub>Databases and migrations</sub></td>
+    <td align="center" width="25%"><img alt="Alchemist" src="docs/assets/classes/alquimista.svg" width="120"><br><b>Alchemist</b><br><sub>APIs and integrations (MCP, HTTP)</sub></td>
+    <td align="center" width="25%"><img alt="Cartomancer" src="docs/assets/classes/cartomante.svg" width="120"><br><b>Cartomancer</b><br><sub>Plans and tasks</sub></td>
+    <td align="center" width="25%"><img alt="Summoner" src="docs/assets/classes/invocador.svg" width="120"><br><b>Summoner</b><br><sub>Calls subagents</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img alt="Chronomancer" src="docs/assets/classes/cronomante.svg" width="120"><br><b>Chronomancer</b><br><sub>Schedules and automates</sub></td>
+    <td align="center" width="25%"><img alt="Paladin" src="docs/assets/classes/paladino.svg" width="120"><br><b>Paladin</b><br><sub>Security and review</sub></td>
+    <td align="center" width="25%"><img alt="Painter" src="docs/assets/classes/pintor.svg" width="120"><br><b>Painter</b><br><sub>Visual design</sub></td>
+  </tr>
+</table>
+
+<sub>The game references (D&D, World of Warcraft, The Witcher, Expedition 33, Tree of Savior, Final Fantasy XIV) and Avatar are tributes: the one wearing each class is always Clawd, with none of their names or logos in the product.</sub>
+
+When Claude stops, the Apprentice goes back to **camp**:
+
+<table>
+  <tr>
+    <td width="50%"><img alt="The Apprentice awake at camp, waiting for you" src="docs/assets/acampamento.svg" width="100%"><br><sub><b>Awake:</b> the turn ended and it is your turn.</sub></td>
+    <td width="50%"><img alt="The Apprentice asleep at camp" src="docs/assets/acampamento-noite.svg" width="100%"><br><sub><b>Asleep:</b> the session has been idle for a few minutes.</sub></td>
   </tr>
 </table>
 
@@ -141,21 +170,16 @@ The terminal install does not ask the questions by itself: it only lists the opt
 |---|---|---|
 | HUD language | `auto`, `pt-BR` or `en` | leave `auto` |
 | Do you use a vault (Obsidian)? | its path, e.g. `C:\Notes` | leave empty |
-| Vault inbox folder | the subfolder where new notes land | keep the default, `Inbox` |
+| Vault inbox folder | the subfolder where new notes land | leave empty: when you pick the vault in the pane, it is found on its own (`00-Inbox` if it exists, otherwise `Inbox`) |
 | Extra protected / always-allowed globs | comma-separated globs | leave empty |
 
 ai-memory needs no folder: the grimoire writes to it over MCP, when that MCP is connected (see [its section](#-long-term-memory-with-ai-memory)).
 
-**First steps.** The first time the pane opens, it asks the same questions as a short wizard:
-- the language;
-- whether you use a vault, where it is and which inbox folder to use: type the path or use **📁 Choose folder**, which opens the system's folder picker (folders are checked before saving);
-- ai-memory, for memory across sessions.
+**First steps.** The first time the pane opens, it says everything already works and only asks for the language. Below, it shows what it found for memory:
+- **Vault:** the folder, if it is already set, or **📁 Choose folder**, which opens the system's folder picker (the folder is checked before saving, and the inbox folder is found on its own). The field to type the path only shows up if the picker does not open.
+- **ai-memory:** "connected", with an invitation to support Fabio Akita, or "not found", with a link to learn about [ai-memory](https://github.com/akitaonrails/ai-memory).
 
-Once the vault is saved, **📂 Open the decisions folder** opens the folder where the grimoire drops decisions in Explorer (or Finder). The same button sits on the grimoire page.
-
-The same screen recommends what is missing: with no vault it suggests [Obsidian](https://obsidian.md); with no ai-memory MCP it suggests [ai-memory](https://github.com/akitaonrails/ai-memory). When it is connected, it shows "✓ ai-memory connected" and invites you to support Fabio Akita with a star on the repository.
-
-You can get back to it from ⚙ → ✦ First steps.
+None of it is required: without a vault or ai-memory, progress and decisions stay in the project itself, and the grimoire asks when it needs to. You can get back to the screen from ⚙ → First steps.
 
 <details>
 <summary><b>Run straight from the folder while developing (Windows, desktop app)</b></summary>
@@ -178,16 +202,13 @@ You can get back to it from ⚙ → ✦ First steps.
 |---|---|---|
 | `language` | `auto` | Follows Claude's language; `pt-BR` or `en` pin it |
 | `protect` | — | Extra protected globs, comma-separated |
-| `allow` | — | Globs the guard never blocks (e.g. `.env.example`) |
+| `allow` | — | Globs the guard never blocks (the `.env.example`, `.env.sample` and `.env.template` templates are already allowed) |
 | `vaultPath` | — | Vault folder, for the grimoire's vault and career destinations |
 | `vaultInbox` | `Inbox` | Vault subfolder where the grimoire drops new notes |
 
-**In the pane's ⚙** (saved across sessions):
-- modules and language;
-- skin;
-- protection mode;
-- the grimoire's Haiku button;
-- First steps.
+**In the pane's ⚙** (saved across sessions), in two groups: **General** (language and style) and **Features** (each module, grouped by where it shows up; under the Grimoire, **⚙ Memory ›**; under the Guard, its mode: **Ask** or **Only warn**). First steps and About sit at the bottom; About shows the 19 classes, with what each one does on hover.
+
+In **⚙ Memory** (also from 📖): each grimoire feature and prompt, where decisions go, the integrations (vault and ai-memory) and the Haiku button.
 
 > [!NOTE]
 > **What about the app's sidebar?** The mod API cannot change the native sidebar: it is not among the components a mod can redraw, and there is no call to rename or group sessions.
@@ -197,26 +218,30 @@ Each module's details, known limits and code layout are in the [mod's README](mo
 ## 🔒 Tokens and privacy
 
 - **Drawing, git reads, timers and groups never call the model.** Only three things spend tokens, and only on your click: **Compact now** (backpack), **✦ Recalibrate objective** (pane, through Haiku) and **✦ Summarize with Haiku** (grimoire, an optional button that is off by default).
-- **The grimoire writes nothing until you click Seal.** CLAUDE.md and AGENTS.md become standing instructions for Claude, so they come **unticked**: they get something only if you tick them. Even then they get a single line, with no backticks or tags. Text that mentions the vault or a personal path is left out.
+- **The grimoire writes nothing until you click Seal,** and a seal can be undone. Only a rule you set yourself ("from now on…") goes to `AGENTS.md`, as a single line with no backticks or tags. Text that mentions the vault or a personal path never goes into the repository.
 - **A note never overwrites a note.** If the name is taken, the new one gets `-2`, `-3`… An inscription that was written nowhere stays pending, with the reason in the notice.
-- **With no vault and no ai-memory,** the grimoire offers only CLAUDE.md and AGENTS.md, unticked, and points to where both extensions are set up.
+- **With no vault and no ai-memory,** everything works with the project: the task in `.hero/tarefas/` (kept out of git by its own `.gitignore`), decisions in `docs/decisoes` (the first one asks before) and rules in `AGENTS.md`.
 - **The guard fails closed.** If the check breaks, the edit is blocked.
 - **Resources and receipt cost nothing.** The numbers come from Claude Code itself (`$.session.usage()`), and the backpack's breakdown is estimated locally, with no token-count call.
 
 ## 🧠 Long-term memory with ai-memory
 
-The grimoire's **ai-memory** destination uses [**ai-memory**](https://github.com/akitaonrails/ai-memory) by **Fabio Akita** ([@akitaonrails](https://github.com/akitaonrails)), MIT-licensed. It gives coding agents long-term memory: it keeps what happens in your sessions, hands the right context back in the next one, and holds a profile of your preferences that applies across projects. Thank you, Akita, for opening it up. If ai-memory helps you, support it: star [its repository](https://github.com/akitaonrails/ai-memory) and tell people who work with coding agents.
+The grimoire uses [**ai-memory**](https://github.com/akitaonrails/ai-memory) by **Fabio Akita** ([@akitaonrails](https://github.com/akitaonrails)), MIT-licensed. It gives coding agents long-term memory: it keeps what happens in your sessions, hands the right context back in the next one, and passes work between agents (Claude, Codex, Antigravity and others) and between PCs. Thank you, Akita, for opening it up. If ai-memory helps you, support it: star [its repository](https://github.com/akitaonrails/ai-memory) and tell people who work with coding agents.
 
-**How the HUD talks to it.** Over MCP, the way ai-memory's docs recommend for external tools. No loose files in a folder:
-- when ai-memory's MCP is connected in the session, the destination shows up in the grimoire; without the MCP it is hidden, and First steps recommends installing it;
-- a **preference** ("I prefer short answers") goes to your **profile** (`memory_write_page` with `scope: "profile"`), under `workflow/`. Older versions without the profile get `scope: "global"`;
-- a **decision** or an **achievement** goes to ai-memory only if you tick that destination. It becomes a page of the current project, under `decisions/` or `notes/`;
-- the time goes into the page name, because `memory_write_page` replaces a page with the same path.
+**The recommended setup.** It is what research and the tools' own docs point to for people who use more than one agent:
+- **`AGENTS.md`** with each project's rules, kept short: Codex, Antigravity and Claude Code read the same file;
+- **the task in a file** (objective, next step, how to verify, what failed and a log), which any agent can pick up;
+- **ai-memory** for what the agent remembers on its own and for handoffs across tools and PCs;
+- **an Obsidian vault** for what you review: decisions, results and career.
 
-**Alongside Obsidian.** The two complement each other:
-- the **vault** holds what you write and review: decisions, results, career notes;
-- **ai-memory** holds what the agent has to remember on its own: session history, handoffs and your preferences;
-- the HUD's grimoire is the bridge: the decision goes to the vault and the preference goes to ai-memory, always on a click.
+With the vault and ai-memory detected, ⚙ Memory shows "✓ Recommended setup detected" and the grimoire comes set up. Without them, everything works with the project; each integration is suggested when you miss it.
+
+**How the HUD talks to it.** Over MCP, the way ai-memory's docs recommend for external tools:
+- **Save progress** writes the task and opens a handoff (`memory_handoff_begin`) with the next step and what is left of the plan;
+- **Continue**, at camp, lists pending handoffs (`memory_handoff_list`) next to the project's tasks and claims the one you pick (`memory_handoff_accept`);
+- a **decision** or an **achievement** goes to ai-memory only if you switch its destination to it: it becomes a page of the project, under `decisions/` or `notes/`, with the time in the name;
+- **What the Sage remembers** shows recent pages (`memory_recent`), and "forget" marks them stale (`memory_feedback`), so bad memory does not make the agent worse;
+- your preferences are learned by ai-memory itself, in its profile: the HUD neither detects nor writes preferences.
 
 If your vault is also an ai-memory project, use `ignore_paths` in `.ai-memory.toml` to keep sensitive folders out of capture.
 
@@ -283,11 +308,11 @@ flowchart LR
 ./scripts/verificar.sh                                       # macOS/Linux
 powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 
-# Regenerate the banner and class icons
+# Regenerate the banner, the class Clawds and the camp
 bun run scripts/gerar-assets.ts
 ```
 
-There are 102 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The animated demo and the screens were recorded from the reference prototype, which is not part of this repository.
+There are 115 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The 0.5 animated demo was recorded from the reference prototype, which is not part of this repository; the gallery screens are drawn by the mod itself.
 
 Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Follow the [security policy](SECURITY.md). Each release's changes are in the [CHANGELOG](CHANGELOG.md).
 
@@ -309,9 +334,14 @@ Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Foll
 - [x] Turn receipt in place of the report and the celebration, with zero tokens
 - [x] The HUD comes back right after `/clear`, `/resume` and `/branch`
 - [x] Vault with the system folder picker and a shortcut to the decisions folder
+- [x] 0.6: 19 classes, one per task family ([map](docs/classes.md)), each with a background-free Clawd (work and failure) and its own scene; the Apprentice and the camp
+- [x] 0.6: pane with the stage on top and sections only when they have content; one-line band; class spinner; logbook with just the pet
+- [x] 0.6: new grimoire: save progress and continue, chronicle, rules in AGENTS.md, ⚙ Memory and the recommended setup detected on its own
+- [x] 0.6: screens reviewed: First steps with no folder questions, ⚙ in General and Features, About with the 19 classes, the guard with the red dragon and a short protected list, logbook without the app rail, light theme checked
+- [ ] 0.6: in-app test, adversarial QA, new demo and the 0.6.0 release
 - [ ] Full manual test in the desktop app, and adjustments from it
 - [ ] First stable release
-- [ ] "Your turn" in the band, a class spinner and diffs in the inventory
+- [ ] Diffs in the inventory
 - [ ] Claude Code CLI (terminal) support, after the desktop version
 
 ## 🙏 Credits and references
@@ -334,7 +364,7 @@ The HUD's code is its own, but it stands on others' work.
 **References**
 - Claude Code mods docs: [code.claude.com/docs/en/plugins/mods/overview](https://code.claude.com/docs/en/plugins/mods/overview)
 - Official examples: [anthropics/claude-code · mods](https://github.com/anthropics/claude-code/tree/main/mods)
-- [ai-memory](https://github.com/akitaonrails/ai-memory) by Fabio Akita: the grimoire's long-term memory destination
+- [ai-memory](https://github.com/akitaonrails/ai-memory) by Fabio Akita: the grimoire's long-term memory and cross-agent handoff
 - [Tabler Icons](https://tabler.io/icons), used in the prototype
 - The quest-log look is inspired by World of Warcraft, Baldur's Gate 3 and Diablo
 
