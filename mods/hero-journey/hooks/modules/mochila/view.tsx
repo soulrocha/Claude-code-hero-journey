@@ -1,26 +1,45 @@
-// Mochila: o cartão de compactação.
+// Mochila: o cartão de compactação, curto. Com o salvar progresso ligado e um
+// objetivo na sessão, oferece salvar o progresso antes, porque é quando o
+// contexto se perde.
 
 import type { RenderElement } from 'claude-code'
 
 import type { Ctx } from '../../core/ui'
+import { progressBlock } from '../grimorio/view'
 
-export type CompactActions = { fill: () => void; now: () => void; dismiss: () => void }
+export type CompactActions = {
+  /** Só compactar: agora, com o Claude parado; trabalhando, leva o /compact ao prompt. */
+  only: () => void
+  /** Salvar o progresso e compactar. */
+  both: () => void
+  dismiss: () => void
+}
 
-export const compactCard = (c: Ctx, context: string, instruction: string, isWorking: boolean, act: CompactActions): RenderElement => {
+/** O que o bloco de salvar progresso mostra; ausente com o recurso desligado ou sem objetivo. */
+export type SaveOffer = { task: string; next: string; dest: string; onVerify: (value: string) => void }
+
+export const compactCard = (c: Ctx, context: string, save: SaveOffer | undefined, act: CompactActions): RenderElement => {
   const { Box, Button, Text } = c.ui
   return (
-    <Box key="card-compactar" flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1}>
-      <Text bold color="warning">
-        🎒 {c.t.compactTitle}
-      </Text>
-      <Text wrap="wrap">{c.t.compactBody(context)}</Text>
-      <Text dimColor wrap="wrap">
-        /compact {instruction}
-      </Text>
-      <Box flexDirection="row" gap={1}>
-        <Button key="card-fill" variant="primary" label={c.t.toPrompt} onPress={act.fill} />
-        {!isWorking && <Button key="card-now" label={c.t.compactNow} onPress={act.now} />}
-        <Button key="card-dismiss" label={c.t.notNow} onPress={act.dismiss} />
+    <Box key="card-compactar" flexDirection="column" rowGap={1} borderStyle="round" borderColor="warning" paddingX={1}>
+      <Box flexDirection="row" columnGap={1}>
+        <Text bold color="warning">
+          {c.t.bagAt(context)}
+        </Text>
+        <Text dimColor wrap="truncate-end">
+          {c.t.timeToCompact}
+        </Text>
+      </Box>
+      {save !== undefined && progressBlock(c, save.task, save.next, save.dest, save.onVerify)}
+      <Box flexDirection="row" columnGap={3} alignItems="center" flexWrap="wrap">
+        <Button key="card-dismiss" plain dimColor label={c.t.notNow} onPress={act.dismiss} />
+        <Box flexGrow={1} />
+        <Button key="card-only" plain label={c.t.onlyCompact} onPress={act.only} />
+        {save !== undefined ? (
+          <Button key="card-both" variant="primary" label={c.t.saveAndCompact} onPress={act.both} />
+        ) : (
+          <Button key="card-now" variant="primary" label={c.t.compactNow} onPress={act.only} />
+        )}
       </Box>
     </Box>
   )

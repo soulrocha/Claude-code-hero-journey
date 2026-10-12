@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { joinPath, openArgv, pickArgvs, pickedOf, subfolderOf } from '../hooks/core/pasta'
+import { joinPath, openArgv, pickArgvs, pickedOf } from '../hooks/core/pasta'
 
 const PLUGIN = 'hero-journey'
 
@@ -34,23 +34,6 @@ describe('pastas do sistema: regras puras', () => {
     expect(pickedOf('D:\\')).toBe('D:\\')
     expect(pickedOf('/Users/eu/Vault/\n')).toBe('/Users/eu/Vault')
     expect(pickedOf('/')).toBe('/')
-  })
-
-  test('a subpasta do vault: dentro, fora, o próprio vault e maiúsculas do Windows', () => {
-    expect(subfolderOf('C:\\Notas', 'c:\\notas\\Entrada\\Decisões')).toBe('Entrada/Decisões')
-    expect(subfolderOf('/vault', '/vault/Inbox')).toBe('Inbox')
-    expect(subfolderOf('/vault', '/vault')).toBeUndefined()
-    expect(subfolderOf('/vault', '/vaultinho/Inbox')).toBeUndefined()
-    expect(subfolderOf('/vault', '/outro')).toBeUndefined()
-  })
-
-  test('revisão do Devin: vault na raiz e maiúsculas só iguais no Windows', () => {
-    expect(subfolderOf('/', '/Notas')).toBe('Notas')
-    expect(subfolderOf('/', '/')).toBeUndefined()
-    // No Linux e no macOS sensível a maiúsculas, /vault não é /Vault.
-    expect(subfolderOf('/Vault', '/vault/Inbox')).toBeUndefined()
-    expect(subfolderOf('/Vault', '/Vault/Inbox')).toBe('Inbox')
-    expect(subfolderOf('D:\\Notas', 'd:\\NOTAS\\Inbox')).toBe('Inbox')
   })
 
   test('juntar caminhos com a barra que o vault já usa; abrir no Explorer com barras do Windows', () => {
@@ -104,9 +87,8 @@ const setupOnWindows = async (
   return { ui, set, runs }
 }
 
-test('📁 ao lado do vault: a pasta escolhida passa pela mesma conferência do campo', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('📁 o vault escolhido passa pela mesma conferência do campo', { options: { language: 'pt-BR' } }, async ($, on) => {
   const { ui, set, runs } = await setupOnWindows($, on, { exitCode: 0, stdout: '/home/eu/vault\r\n' }, ['/home/eu/vault'])
-  await ui.press({ key: 'setup-vault-sim' })
   await ui.press({ key: 'setup-vault-pick' })
   expect(set).toEqual([{ key: 'hero-journey.vaultPath', value: '/home/eu/vault' }])
   const picker = runs.find(r => r.argv.join(' ').includes('FolderBrowserDialog'))
@@ -116,16 +98,15 @@ test('📁 ao lado do vault: a pasta escolhida passa pela mesma conferência do 
 
 test('📁 cancelado não grava nada nem avisa', { options: { language: 'pt-BR' } }, async ($, on) => {
   const { ui, set } = await setupOnWindows($, on, { exitCode: 0, stdout: '' }, [])
-  await ui.press({ key: 'setup-vault-sim' })
   await ui.press({ key: 'setup-vault-pick' })
   expect(set).toEqual([])
   expect(await ui.find({ text: /seletor de pastas/ })).toBeUndefined()
+  expect(await ui.find({ key: 'setup-vault-path' })).toBeUndefined()
   await ui.unmount()
 })
 
-test('📁 sem seletor no sistema: avisa e o campo continua valendo', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('📁 sem seletor no sistema: avisa e o campo aparece', { options: { language: 'pt-BR' } }, async ($, on) => {
   const { ui, set } = await setupOnWindows($, on, 'missing', [])
-  await ui.press({ key: 'setup-vault-sim' })
   await ui.press({ key: 'setup-vault-pick' })
   expect(set).toEqual([])
   expect(await ui.find({ text: /O seletor de pastas do sistema não abriu aqui/ })).toBeDefined()
@@ -133,33 +114,19 @@ test('📁 sem seletor no sistema: avisa e o campo continua valendo', { options:
   await ui.unmount()
 })
 
-test('📁 da pasta de entrada: só vale uma subpasta do vault', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
-  const fora = await setupOnWindows($, on, { exitCode: 0, stdout: '/outro/Inbox' }, ['/vault', '/outro/Inbox'])
-  await fora.ui.press({ key: 'setup-inbox-pick' })
-  expect(fora.set).toEqual([])
-  expect(await fora.ui.find({ text: /não está dentro do vault/ })).toBeDefined()
-  await fora.ui.unmount()
-})
-
-test('📁 da pasta de entrada: dentro do vault, grava o caminho relativo', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
-  const { ui, set } = await setupOnWindows($, on, { exitCode: 0, stdout: '/vault/Entrada' }, ['/vault', '/vault/Entrada'])
-  await ui.press({ key: 'setup-inbox-pick' })
-  expect(set).toEqual([{ key: 'hero-journey.vaultInbox', value: 'Entrada' }])
+test('📁 a pasta de entrada vem sozinha: 00-Inbox, se existir no vault', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const { ui, set } = await setupOnWindows($, on, { exitCode: 0, stdout: '/vault' }, ['/vault', '/vault/00-Inbox', '/vault/Inbox'])
+  await ui.press({ key: 'setup-vault-pick' })
+  expect(set).toEqual([
+    { key: 'hero-journey.vaultPath', value: '/vault' },
+    { key: 'hero-journey.vaultInbox', value: '00-Inbox' },
+  ])
   await ui.unmount()
 })
 
-test('📂 abre no Explorer a pasta onde as decisões caem', { options: { language: 'pt-BR', vaultPath: '/vault', vaultInbox: 'Entrada' } }, async ($, on) => {
-  const { ui, runs } = await setupOnWindows($, on, 'missing', ['/vault', '/vault/Entrada'])
-  await ui.press({ key: 'setup-open-decisions' })
-  const opened = runs.find(r => r.argv[0] === 'explorer.exe')
-  expect(opened !== undefined && unix(opened.argv[1] ?? '')).toBe('/vault/Entrada')
-  await ui.unmount()
-})
-
-test('📂 sem a pasta de entrada criada, abre o próprio vault', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
-  const { ui, runs } = await setupOnWindows($, on, 'missing', ['/vault'])
-  await ui.press({ key: 'setup-open-decisions' })
-  const opened = runs.find(r => r.argv[0] === 'explorer.exe')
-  expect(opened !== undefined && unix(opened.argv[1] ?? '')).toBe('/vault')
+test('📁 sem pasta de entrada no vault, fica o padrão (Inbox) sem gravar nada', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const { ui, set } = await setupOnWindows($, on, { exitCode: 0, stdout: '/vault' }, ['/vault'])
+  await ui.press({ key: 'setup-vault-pick' })
+  expect(set).toEqual([{ key: 'hero-journey.vaultPath', value: '/vault' }])
   await ui.unmount()
 })
