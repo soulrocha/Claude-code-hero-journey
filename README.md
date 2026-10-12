@@ -30,9 +30,9 @@
 
 <div align="center">
 
-<img alt="Demonstração animada: o diário de bordo com os mascotes, a faixa acima do prompt, o painel com objetivo, quests, grupo e o relatório da missão" src="docs/assets/demo.webp" width="100%">
+<img alt="Demonstração animada: o Mago lê, o Ilusionista mexe na tela, o Bruxo roda os testes e falha, o Rúnico corrige, dois subagentes saem em expedição, o dragão barra o .env e a sessão termina no acampamento com o recibo do turno" src="docs/assets/demo.svg" width="100%">
 
-<sub>Protótipo de referência, com dados fictícios e em velocidade 2×. A HUD de verdade desenha com os componentes do app, então a aparência final pode variar um pouco. No protótipo, o grimório aparece com o CLAUDE.md e o AGENTS.md marcados; na HUD, eles vêm desmarcados. Esta demo é da versão 0.5: a da 0.6, com o palco e as 19 classes, sai junto com a versão.</sub>
+<sub>Uma sessão curta, em loop, com dados de exemplo. A arte é a do próprio mod (os Clawds, o palco, o dragão), montada como no app desktop; o texto vai em português, e a HUD também fala inglês.</sub>
 
 </div>
 
@@ -329,11 +329,12 @@ flowchart LR
 ./scripts/verificar.sh                                       # macOS/Linux
 powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 
-# Regenera o banner, os Clawds das classes e o acampamento
+# Regenera o banner, os Clawds das classes, o acampamento e a demo
 bun run scripts/gerar-assets.ts
+bun run scripts/gerar-demo.ts
 ```
 
-São 115 testes da HUD e 5 do spike. Eles rodam no motor do próprio Claude Code (`claude plugin test`), nas superfícies desktop e terminal, e incluem regressões para cada achado do QA adversarial e da revisão do PR. A demo animada da 0.5 foi gravada a partir do protótipo de referência, que não faz parte deste repositório; as telas da galeria são desenhadas pelo próprio mod.
+São 115 testes da HUD e 5 do spike. Eles rodam no motor do próprio Claude Code (`claude plugin test`), nas superfícies desktop e terminal, e incluem regressões para cada achado do QA adversarial e da revisão do PR. A demo e as telas da galeria são desenhadas a partir da arte do próprio mod.
 
 Quer contribuir? Leia o [CONTRIBUTING](CONTRIBUTING.md). Achou uma falha de segurança? Siga a [política de segurança](SECURITY.md). As mudanças de cada versão estão no [CHANGELOG](CHANGELOG.md).
 
@@ -359,7 +360,7 @@ Quer contribuir? Leia o [CONTRIBUTING](CONTRIBUTING.md). Achou uma falha de segu
 - [x] 0.6: painel com o palco no topo e seções só com conteúdo; faixa em uma linha; spinner com a classe; diário só com o pet
 - [x] 0.6: grimório novo: salvar progresso e continuar, crônica, regras no AGENTS.md, ⚙ Memória e a estrutura recomendada detectada sozinha
 - [x] 0.6: telas revisadas: Primeiros passos sem pergunta de pasta, ⚙ em Geral e Recursos, Sobre com as 19 classes, guarda com o dragão vermelho e lista curta de protegidos, diário sem o trilho do app, tema claro conferido
-- [ ] 0.6: teste no app, QA adversarial, demo nova e a versão 0.6.0
+- [x] 0.6: teste no app, revisão de qualidade, demo nova e a versão 0.6.0
 - [ ] Teste manual completo no app desktop, e ajustes com o resultado
 - [ ] Primeira versão estável
 - [ ] Diff no inventário
