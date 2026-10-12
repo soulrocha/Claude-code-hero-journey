@@ -30,9 +30,9 @@
 
 <div align="center">
 
-<img alt="Animated demo: the logbook with mascots, the band above the prompt, and the pane with objective, quests, party and the mission report" src="docs/assets/demo.webp" width="100%">
+<img alt="Animated demo: the Mage reads, the Illusionist edits the screen, the Witcher runs the tests and fails, the Rune Caster fixes it, two subagents go on expedition, the dragon stops the .env and the session ends at camp with the turn receipt" src="docs/assets/demo.svg" width="100%">
 
-<sub>Reference prototype with fictional data, played at 2× speed. The real HUD draws with the app's own components, so the final look may differ slightly. The demo text is in Portuguese; the HUD also ships in English. The prototype shows CLAUDE.md and AGENTS.md ticked in the grimoire; in the HUD they come unticked. This demo is from version 0.5: the 0.6 one, with the stage and the 19 classes, ships with that version.</sub>
+<sub>A short session, looping, with sample data. The art is the mod's own (the Clawds, the stage, the dragon), laid out as in the desktop app; the text is in Portuguese, and the HUD also ships in English.</sub>
 
 </div>
 
@@ -308,11 +308,12 @@ flowchart LR
 ./scripts/verificar.sh                                       # macOS/Linux
 powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 
-# Regenerate the banner, the class Clawds and the camp
+# Regenerate the banner, the class Clawds, the camp and the demo
 bun run scripts/gerar-assets.ts
+bun run scripts/gerar-demo.ts
 ```
 
-There are 115 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The 0.5 animated demo was recorded from the reference prototype, which is not part of this repository; the gallery screens are drawn by the mod itself.
+There are 115 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The demo and the gallery screens are drawn from the mod's own art.
 
 Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Follow the [security policy](SECURITY.md). Each release's changes are in the [CHANGELOG](CHANGELOG.md).
 
@@ -338,7 +339,7 @@ Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Foll
 - [x] 0.6: pane with the stage on top and sections only when they have content; one-line band; class spinner; logbook with just the pet
 - [x] 0.6: new grimoire: save progress and continue, chronicle, rules in AGENTS.md, ⚙ Memory and the recommended setup detected on its own
 - [x] 0.6: screens reviewed: First steps with no folder questions, ⚙ in General and Features, About with the 19 classes, the guard with the red dragon and a short protected list, logbook without the app rail, light theme checked
-- [ ] 0.6: in-app test, adversarial QA, new demo and the 0.6.0 release
+- [x] 0.6: in-app test, quality review, new demo and the 0.6.0 release
 - [ ] Full manual test in the desktop app, and adjustments from it
 - [ ] First stable release
 - [ ] Diffs in the inventory
