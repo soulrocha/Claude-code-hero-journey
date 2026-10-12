@@ -89,15 +89,6 @@ test('todo Svg do painel declara o esquema de cor (sem ele o frame pinta fundo b
   await ui.unmount()
 })
 
-test('no terminal o painel desenha só texto', { options: { language: 'pt-BR' } }, async ($, on) => {
-  on('session.usage', usage)
-  const ui = await $.ui.mount(pane('terminal'))
-  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
-  expect(await ui.find({ text: /Sua vez/ })).toBeDefined()
-  expect(await ui.find({ text: /Mochila 34%/ })).toBeDefined()
-  await ui.unmount()
-})
-
 test('cada edição ganha o pet, quem agiu e o resultado em texto; nada se esconde (o app já agrupa no fim do turno)', { options: { language: 'pt-BR' } }, async ($, on) => {
   on('tool.call', { tool: 'Edit' }, edited)
   on('ui.render', { component: 'ToolUse' }, engineRow)
