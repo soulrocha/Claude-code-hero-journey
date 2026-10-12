@@ -470,6 +470,29 @@ test('grimório: Desfazer tira a linha do AGENTS.md e devolve a regra para guard
   await again.unmount()
 })
 
+test('grimório: Desfazer não apaga a regra que já estava no AGENTS.md antes do Selar', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const files: Record<string, string> = { '/repo/AGENTS.md': '# Projeto\n' }
+  const toasts: string[] = []
+  grimEngine(on, files, toasts)
+  on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
+  await $.turn.start({ text: 'A partir de agora, sempre rode os testes antes do commit.', turnId: 't9' } as never)
+  await $.turn.complete(answerTurn('Feito.'))
+  await openGrimoire($)
+  const page = await $.ui.mount(pane)
+  const undo = 'undo-t9-0-a-partir-de-agora-sempre-rode-os-testes-'
+  // A linha exata que o Selar grava (com a data de hoje), para ela já existir antes do próximo Selar.
+  await page.press({ key: 'grim-seal' })
+  const withRule = files['/repo/AGENTS.md']!
+  await page.press({ key: undo })
+  files['/repo/AGENTS.md'] = withRule
+  await page.press({ key: 'grim-seal' })
+  expect(files['/repo/AGENTS.md']).toBe(withRule)
+  // O Selar não gravou nada (a regra já estava lá): não há o que desfazer, e a linha de antes fica.
+  expect(await page.find({ key: undo })).toBeUndefined()
+  await page.unmount()
+  expect(files['/repo/AGENTS.md']).toBe(withRule)
+})
+
 test('grimório: desligado no ⚙ Memória, a crônica não junta mais decisões', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
   grimEngine(on, {}, [])
   const p = await $.ui.mount(pane)

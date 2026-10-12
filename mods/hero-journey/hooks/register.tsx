@@ -24,7 +24,7 @@ import type { Ctx } from './core/ui'
 import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, goalOf, onPrompt, prune, storeKey } from './modules/campanha/campanha'
 import { rowView } from './modules/diario/view'
 import { bandView } from './modules/faixa/view'
-import { appendDecision, available, continuePrompt, cycleDest, detect, haikuPrompt, isSubfolder, kindOn, memoryTool, merge, nextTaskId, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, suggest, taskPrefix, taskText, withSuffix, writesFor, writtenOf } from './modules/grimorio/grimorio'
+import { appendDecision, available, continuePrompt, cycleDest, detect, haikuPrompt, isSubfolder, kindOn, memoryTool, merge, nextTaskId, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, writesFor, writtenOf } from './modules/grimorio/grimorio'
 import type { Dests, Memory, MemoryScope, Write } from './modules/grimorio/grimorio'
 import { grimPage, marcoCard } from './modules/grimorio/view'
 import { diffOf, LABELS, listOption, makeGuard, shellTargets, verdictOf } from './modules/guarda/guarda'
@@ -100,7 +100,6 @@ let saveDismissedAt = 0
 let marcoInfo = { name: '', sub: '' }
 let planCelebrated = ''
 // O texto da tarefa antes do último salvar, para o Desfazer voltar a ele.
-let progressBefore: string | undefined
 // Quantas notas a memória automática do Claude tem neste projeto (sem ai-memory), e onde.
 let autoNotes: { n: number; dir: string } | undefined
 
@@ -295,8 +294,12 @@ async function memoryCall($: EngineInterface, memory: { server: string }, tool: 
   return $.mcp.call(memory.server, tool, { ...(await memoryScope($)), ...args })
 }
 
-/** Grava uma inscrição num destino e devolve onde. Nota nova nunca sobrescreve outra: ganha -2, -3… */
-async function writeOne($: EngineInterface, w: Write, memory: Memory | undefined, used: Set<string>, heading: string): Promise<string> {
+/**
+ * Grava uma inscrição num destino e devolve onde, ou `undefined` quando não havia
+ * nada a gravar (a regra já estava no AGENTS.md): aí o Desfazer não tem o que tirar,
+ * e tirar apagaria a linha que já existia. Nota nova nunca sobrescreve outra: ganha -2, -3…
+ */
+async function writeOne($: EngineInterface, w: Write, memory: Memory | undefined, used: Set<string>, heading: string): Promise<string | undefined> {
   if (w.dest === 'aiMemory') {
     let p = w.path
     for (let n = 2; used.has(p); n++) p = withSuffix(w.path, n)
@@ -307,7 +310,9 @@ async function writeOne($: EngineInterface, w: Write, memory: Memory | undefined
   }
   if (w.append) {
     const current = (await $.fs.exists(w.path)) ? await $.fs.read(w.path) : ''
-    await $.fs.write(w.path, appendDecision(current, w.text, heading))
+    const next = appendDecision(current, w.text, heading)
+    if (next === current) return undefined
+    await $.fs.write(w.path, next)
     return w.path
   }
   // ponytail: exists→write não é atômico; duas sessões selando no mesmo instante podem colidir.
@@ -352,14 +357,17 @@ async function seal($: EngineInterface) {
       // A regra de privacidade barrou (o texto cita o vault ou um caminho pessoal): avisa, e a inscrição fica.
       if (writes.length === 0 && i.destinations.every(d => available(d, dests))) $.ui.toast(t.privacyBlocked)
       const written: Written[] = []
+      const ok: Inscription['destinations'] = []
       for (const w of writes) {
         try {
-          written.push(writtenOf(w, await writeOne($, w, dests.memory, used, t.rulesHeading)))
+          const at = await writeOne($, w, dests.memory, used, t.rulesHeading)
+          ok.push(w.dest)
+          if (at !== undefined) written.push(writtenOf(w, at))
         } catch (err) {
           missed.push(`${t.dest[w.dest]}: ${err instanceof Error ? err.message : String(err)}`)
         }
       }
-      if (written.length > 0 && written.length === writes.length) sealed[i.id] = { ok: written.map(w => w.dest), written }
+      if (ok.length > 0 && ok.length === writes.length) sealed[i.id] = { ok, written }
     }
     const done = Object.keys(sealed).length
     if (done > 0) $.ui.toast(t.sealed(done))
@@ -443,7 +451,7 @@ async function saveProgress($: EngineInterface): Promise<boolean> {
   try {
     const repo = await $.session.cwd()
     const d = await liveDests($)
-    const home = progressHome(repo, d.vault)
+    const home = progressHome(repo, d.vault, (await memoryScope($)).project)
     const name = projectName(repo)
     const known = (await $.store.get(`tarefa:${c.id}`).catch(() => undefined)) as string | undefined
     const files = await $.fs.list(home).then(es => es.map(x => x.name)).catch(() => [] as string[])
@@ -465,17 +473,18 @@ async function saveProgress($: EngineInterface): Promise<boolean> {
       failed,
       logLine: [host, 'Claude Code', t.actions(entries.length), inv.recent?.[0]?.hash ?? ''].filter(Boolean).join(' | '),
     })
-    await $.fs.write(path, taskText(task))
-    // Sem vault, as tarefas moram no projeto: um .gitignore próprio as deixa fora do git.
+    // Sem vault, as tarefas moram no projeto: o .gitignore próprio vem antes da tarefa,
+    // para ela nunca ficar visível ao git se a gravação dele falhar.
     if (d.vault === '' && !(await $.fs.exists(`${repo}/.hero/.gitignore`))) await $.fs.write(`${repo}/.hero/.gitignore`, '*\n')
+    await $.fs.write(path, taskText(task))
     await $.store.set(`tarefa:${c.id}`, path)
-    progressBefore = before
     let handoffId: string | undefined
     if (d.memory !== undefined) {
       try {
-        // O ID e o caminho da tarefa vão no resumo: "pegue a tarefa X" acha o arquivo em qualquer agente.
+        // O ID e o caminho da tarefa vão no resumo ("pegue a tarefa X" acha o arquivo em qualquer agente),
+        // relativo ao vault ou ao repositório: nome de usuário e pasta pessoal não saem da máquina.
         const r = await memoryCall($, d.memory, 'memory_handoff_begin', {
-          summary: `${task.id} ${task.title}: ${task.next || task.objective} (${t.taskFile}: ${path})`.slice(0, 400),
+          summary: `${task.id} ${task.title}: ${task.next || task.objective} (${t.taskFile}: ${shareablePath(path, [d.vault, repo])})`.slice(0, 400),
           next_steps: (await read($, quests)).filter(q => q.status !== 'completed').map(q => q.title).slice(0, 8),
           open_questions: task.verify === '' ? [] : [`${t.verify}: ${task.verify}`],
         })
@@ -486,7 +495,7 @@ async function saveProgress($: EngineInterface): Promise<boolean> {
         $.ui.toast(t.handoffFailed(err instanceof Error ? err.message : String(err)))
       }
     }
-    await update($, progress, s => ({ ...s, saved: { at: Date.now(), path, id: task.id, handoffId, created: before === undefined } }))
+    await update($, progress, s => ({ ...s, saved: { at: Date.now(), path, id: task.id, handoffId, created: before === undefined, before } }))
     verifyDraft = ''
     $.ui.toast(t.progressDone(task.id))
     await refreshProgress($)
@@ -504,7 +513,7 @@ async function undoProgress($: EngineInterface) {
   if (s === undefined) return
   try {
     if (s.created) await deleteFile($, s.path)
-    else if (progressBefore !== undefined) await $.fs.write(s.path, progressBefore)
+    else if (s.before !== undefined) await $.fs.write(s.path, s.before)
     const memory = (await grimDests($)).memory
     if (s.handoffId !== undefined && memory !== undefined) await memoryCall($, memory, 'memory_handoff_cancel', { handoff_id: s.handoffId })
     await update($, progress, x => ({ ...x, saved: undefined }))
@@ -527,7 +536,7 @@ async function refreshProgress($: EngineInterface) {
   try {
     const repo = await $.session.cwd()
     const d = await liveDests($)
-    const home = progressHome(repo, d.vault)
+    const home = progressHome(repo, d.vault, (await memoryScope($)).project)
     const list: Progress[] = []
     for (const e of await $.fs.list(home).catch(() => [])) {
       if (e.kind !== 'file' || !/\.md$/.test(e.name) || e.name.startsWith('_')) continue
