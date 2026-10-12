@@ -14,9 +14,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
 
-import type { Campaign, Card, DiaryEntry, GuardFile, Inscription, Lang, Member, ModuleId, Palette, Prefs, Progress, Written } from '../types'
+import type { Campaign, Card, Cls, DiaryEntry, GuardFile, Inscription, Lang, Member, ModuleId, Palette, Prefs, Progress, Written } from '../types'
 import { agentClass, baseName, classOf, delivers, patchStats, summaryOf } from './core/classes'
-import { TONE } from './core/art'
+import { classColor, TONE } from './core/art'
 import { DICT, looksPortuguese, resolveLang } from './core/i18n'
 import { isWindows, joinPath, openArgv, pickArgvs, pickedOf } from './core/pasta'
 import { DEFAULT_MEMORY, DEFAULT_PREFS, isOn, migratePrefs, toggleMemory, toggleModule } from './core/prefs'
@@ -35,9 +35,12 @@ import type { UsageReading } from './modules/mochila/recursos'
 import { compactCard } from './modules/mochila/view'
 import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, STATUS_ARGV, upsertMember } from './modules/painel/painel'
 import { setupView } from './modules/painel/primeiros-passos'
-import { aboutView, configView, footer, mainView, memoryView } from './modules/painel/view'
+import { aboutView, configView, footer, mainView, memoryView, stageLook } from './modules/painel/view'
+import { rasterOfPixels } from './core/raster'
+import { TH, TW, tsprite } from './core/tsprites'
 import { layoutOf, NAP_MS, sceneOf } from './modules/painel/palco'
-import { leadOf, receiptOf } from './modules/recibo/recibo'
+import { leadOf, receiptOf, receiptParts } from './modules/recibo/recibo'
+import { CLASS_ICON } from './core/tsprites'
 
 const PANE = 'hero-journey'
 const PANE_TITLE = 'Hero Journey'
@@ -89,6 +92,12 @@ const turnPrompts = new Map<string, string>()
 let bagWarned = false
 // O relógio da contagem do reset: um só, mesmo que o session.start rode de novo.
 let clock: { cancel: () => void } | undefined
+/** O palco do terminal desenhado agora (o relógio da animação repinta só ele), e o quadro. */
+let stageNow: ReturnType<typeof stageLook>
+let stageFrame: 0 | 1 = 0
+let anim: { cancel: () => void } | undefined
+/** O spinner do terminal é do mod: com o turno rodando, o relógio o redesenha a cada segundo. */
+let spinOnTerminal = false
 // Um Selar por vez: o segundo clique, enquanto o primeiro grava, não faz nada.
 let sealing = false
 // O "Verificar" que a pessoa digita no cartão de compactar, até salvar o progresso.
@@ -98,6 +107,12 @@ let notedDismissed = ''
 let saveDismissedAt = 0
 // O marco do último fim de turno (nome e detalhe do cartão) e o plano já celebrado (para não repetir).
 let marcoInfo = { name: '', sub: '' }
+/** O último recibo, que o terminal desenha no lugar da linha de duração do turno: a classe que mais agiu e as peças. */
+let lastReceipt: { lead?: Cls; head: string; parts: string[] } | undefined
+/** O giro do spinner do terminal, um passo por redesenho. */
+const SPIN = ['✻', '✳', '✢', '·', '✢', '✳']
+/** Quando o turno começou, para o tempo do spinner desenhado pelo mod no terminal. */
+let turnStartedAt = 0
 let planCelebrated = ''
 // O texto da tarefa antes do último salvar, para o Desfazer voltar a ele.
 // Quantas notas a memória automática do Claude tem neste projeto (sem ai-memory), e onde.
@@ -117,12 +132,13 @@ async function moduleOn($: EngineInterface, id: ModuleId) {
   return isOn(await prefsNow($), id)
 }
 
-async function ctxOf($: EngineInterface, surface: string, width: number): Promise<Omit<Ctx, 'ui'>> {
+async function ctxOf($: EngineInterface, surface: string, width: number, inline = false): Promise<Omit<Ctx, 'ui'>> {
   const p = await prefsNow($)
   const themeValue = await read($, theme)
   const palette = paletteOf(themeValue)
   return {
     desktop: surface === 'desktop',
+    inline,
     t: DICT[await langNow($)],
     palette,
     skin: p.skin,
@@ -936,8 +952,9 @@ async function togglePane($: EngineInterface) {
 
 async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
-  const c: Ctx = { ...(await ctxOf($, e.surface, e.props.bodyColumns)), ui }
+  const c: Ctx = { ...(await ctxOf($, e.surface, e.props.bodyColumns, e.props.placement === 'inline')), ui }
   const v = await read($, view)
+  stageNow = undefined
   const p = await prefsNow($)
   const toMain = () => update($, view, () => 'main' as const)
 
@@ -1048,9 +1065,7 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
 
   // O relógio de 1 minuto sobe o `tick`: ler aqui inscreve o painel; a contagem do reset anda e o acampamento adormece.
   await read($, tick)
-  return mainView(
-    c,
-    {
+  const data = {
       prefs: p,
       campaign: await read($, campaign),
       quests: await read($, quests),
@@ -1063,7 +1078,12 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       fit: await paneFit($, e.props.scroll.bodyRows),
       pendingInscriptions: shown.length,
       grim: await grimOnStage($),
-    },
+    }
+  stageNow = e.surface === 'terminal' ? stageLook(c, data) : undefined
+  stageFrame = 0
+  return mainView(
+    c,
+    data,
     {
       compact: async () => {
         if (await moduleOn($, 'mochila')) await pushCard($, 'compactar')
@@ -1205,6 +1225,19 @@ export const register: Register = (on, options) => {
         if (r?.windows.some(w => w.resetsAt !== undefined) === true || napping) await update($, tick, n => n + 1)
       })().catch(() => {})
     })
+    // O palco do terminal anima: dois quadros, repintados pelo blit sem redesenhar o painel.
+    // No mesmo relógio, o spinner do terminal (desenhado pelo mod) avança o tempo a cada segundo.
+    anim?.cancel()
+    let beat = 0
+    anim = $.clock.every(500, () => {
+      beat++
+      if (spinOnTerminal && beat % 2 === 0) $.ui.invalidate('ui.render')
+      const s = stageNow
+      if (s === undefined) return
+      stageFrame = stageFrame === 0 ? 1 : 0
+      const r = rasterOfPixels(tsprite(s.cls, s.pose, s.camp, stageFrame), TW, TH, 'stage', s.scale)
+      void $.ui.blit({ requestId: PANE, key: 'stage', cells: r.cells }).catch(() => undefined)
+    })
     // Aberto sem pedido, o painel só aparece em tela larga (144 colunas).
     if (await moduleOn($, 'painel')) await $.ui.open({ id: PANE, title: PANE_TITLE })
     return ran
@@ -1289,6 +1322,7 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     const ran = await next(e)
+    turnStartedAt = Date.now()
     await update($, turnId, () => ran.turnId)
     await update($, turn, t => ({ ...t, busy: true }))
     turnPrompts.set(ran.turnId, e.text)
@@ -1459,6 +1493,7 @@ export const register: Register = (on, options) => {
   // ---------- Fim do turno: capítulo, recibo, recursos e grimório ----------
 
   on('turn.complete', async ($, e, next) => {
+    spinOnTerminal = false
     const ran = await next(e)
     if (e.agentId !== undefined) {
       const agentId = e.agentId
@@ -1494,8 +1529,12 @@ export const register: Register = (on, options) => {
     const lead = leadOf(entries)
     // Só onde algo desenha: num `claude -p` (sem superfície) o texto do turno é a resposta e fica intacto.
     // Não usa o `isInteractive`: ele é falso também no app desktop, que hospeda a sessão pelo SDK.
-    const drawn = (await $.session.surfaces().catch(() => [])).length > 0
-    const receipt = isOn(p, 'recibo') && drawn ? receiptOf(report, lead === undefined ? undefined : DICT[l].className[lead], l) : undefined
+    const surfaces = await $.session.surfaces().catch(() => [] as readonly string[])
+    const drawn = surfaces.length > 0
+    const rp = isOn(p, 'recibo') ? receiptParts(report, undefined, l) : undefined
+    lastReceipt = rp === undefined ? undefined : { lead, head: rp.head, parts: rp.parts }
+    // No terminal o recibo vai no lugar do "Baked for" (TurnDuration); a linha de texto fica para o desktop.
+    const receipt = isOn(p, 'recibo') && drawn && !surfaces.includes('terminal') ? receiptOf(report, lead === undefined ? undefined : DICT[l].className[lead], l) : undefined
 
     // O grimório só sugere: junta em silêncio (o 📖 conta), o Sábio avisa no palco e, no fim de um marco, o cartão pergunta.
     if (isOn(p, 'grimorio') && e.reason === 'answer') {
@@ -1541,7 +1580,7 @@ export const register: Register = (on, options) => {
   // toda, para os recursos ficarem presos no fim.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const body = await renderPane($, e)
-    if (e.surface !== 'desktop') return body
+    if (e.surface !== 'desktop' && e.props.placement === 'inline') return body
     const { Box } = $.ui.resolve(e)
     // A tela principal (ou a que cai nela com o módulo desligado) ocupa a altura toda.
     const v = await read($, view)
@@ -1552,7 +1591,7 @@ export const register: Register = (on, options) => {
     // No grimório e no ⚙ também; o Sobre e os Primeiros passos rolam inteiros.
     const page = v === 'config' || v === 'memoria' || (v === 'grimorio' && isOn(p, 'grimorio'))
     if (page) {
-      const c: Ctx = { ...(await ctxOf($, e.surface, e.props.bodyColumns)), ui: $.ui.resolve(e) }
+      const c: Ctx = { ...(await ctxOf($, e.surface, e.props.bodyColumns, e.props.placement === 'inline')), ui: $.ui.resolve(e) }
       return (
         <Box flexDirection="column" paddingX={1} height={e.props.scroll.bodyRows}>
           <Box key="page-body" flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
@@ -1658,12 +1697,32 @@ export const register: Register = (on, options) => {
             ? `${t.className[now.cls]} ${t.classVerb[now.cls]} ${now.file === undefined ? now.summary : baseName(now.file)}`.trim()
             : undefined
     if (text === undefined) return next(e)
+    spinOnTerminal = e.surface === 'terminal'
+    if (e.surface === 'terminal') {
+      // Terminal: a linha é do mod, com o ícone e a cor da classe. O motor deixa de pôr os tokens;
+      // o tempo é o nosso, e um relógio redesenha a linha a cada segundo enquanto o turno roda.
+      const cls: Cls = e.props.mode === 'tool-use' && now !== null ? now.cls : 'aprendiz'
+      const { Box, Text } = $.ui.resolve(e)
+      const palette = paletteOf(await read($, theme))
+      const s = Math.max(0, Math.round((Date.now() - (turnStartedAt || Date.now())) / 1000))
+      const what = text.slice(t.className[cls].length).trim()
+      return (
+        <Box flexDirection="row" columnGap={1}>
+          <Text color={classColor(cls, palette)}>{SPIN[s % SPIN.length]}</Text>
+          <Text>{CLASS_ICON[cls]}</Text>
+          <Text bold color={classColor(cls, palette)}>
+            {t.className[cls]}
+          </Text>
+          <Text wrap="truncate-end">{`${what}…`}</Text>
+          <Text dimColor>{`(${s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`})`}</Text>
+        </Box>
+      )
+    }
     return next({ ...e, props: { ...e.props, message: text.length > 80 ? `${text.slice(0, 79)}…` : text } })
   }).catch(($, e, next) => next(e))
 
   // Diário de bordo: o Clawd da classe e o resultado em cada linha, durante o turno.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
-    if (e.surface !== 'desktop') return next(e)
     const p = await prefsNow($)
     if (!isOn(p, 'diario')) return next(e)
 
@@ -1676,6 +1735,37 @@ export const register: Register = (on, options) => {
     const status = e.props.isRunning ? 'run' : e.props.isErrored || e.props.isInterrupted ? 'err' : 'ok'
     return rowView(c, entry ?? { cls: classOf(e.props.tool, input), status, summary: summaryOf(e.props.tool, input) }, row)
   })
+
+  // Terminal: o recibo do turno no lugar de "Baked for 1m 4s" (a linha do motor que fecha o turno).
+  on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    if (lastReceipt === undefined || !(await moduleOn($, 'recibo'))) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    const r = lastReceipt
+    const t = DICT[await langNow($)]
+    const palette = paletteOf(await read($, theme))
+    return (
+      <Box flexDirection="row" columnGap={1}>
+        {r.lead !== undefined && <Text>{CLASS_ICON[r.lead]}</Text>}
+        {r.lead !== undefined && (
+          <Text bold color={classColor(r.lead, palette)}>
+            {t.className[r.lead]}
+          </Text>
+        )}
+        {r.head !== '' && <Text color={TONE[palette].gild}>{r.head.replace(/ · $/, '')}</Text>}
+        <Text dimColor wrap="truncate-end">
+          {`· ${r.parts.join(' · ')}`}
+        </Text>
+      </Box>
+    )
+  }).catch(($, e, next) => next(e))
+
+  // Terminal: os recursos no fim da linha de dicas do prompt, só quando um está em alerta.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' || !(await moduleOn($, 'mochila'))) return next(e)
+    const alert = alertOf(await read($, resources), Date.now())
+    if (alert === undefined) return next(e)
+    return next({ ...e, props: { ...e.props, tail: DICT[await langNow($)].bandAlert[alert.kind](alert.percent) } })
+  }).catch(($, e, next) => next(e))
 
   // Guarda: o Paladino com o arquivo e a mudança acima do diálogo do Claude,
   // e a descrição de cada opção, que a ferramenta aceita e o `$.ui.ask` não passa.

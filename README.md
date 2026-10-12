@@ -22,7 +22,7 @@
 </div>
 
 > [!WARNING]
-> **Beta.** A HUD foi feita primeiro para o **app desktop** do Claude Code. O suporte ao **Claude Code CLI** (terminal) ainda está pendente e vem depois da versão desktop. Espere arestas, e [abra uma issue](https://github.com/soulrocha/Claude-code-hero-journey/issues) quando achar uma.
+> **Beta.** A HUD funciona no **app desktop** e no **Claude Code CLI** (terminal), cada um com o desenho que o seu meio permite. Espere arestas, e [abra uma issue](https://github.com/soulrocha/Claude-code-hero-journey/issues) quando achar uma.
 
 ---
 
@@ -79,6 +79,17 @@ Além dos módulos, a HUD fala **português e inglês** (segue a língua do Clau
 </table>
 
 <sub>Telas desenhadas pelo próprio mod, com dados de exemplo.</sub>
+
+### No terminal
+
+<img alt="A HUD no terminal: o diário com o ícone e a classe em cada ferramenta, o recibo no fim do turno, o spinner com a classe, a faixa acima do prompt e o painel com o Aprendiz e a fogueira" src="docs/assets/telas/terminal.png">
+
+No Claude Code CLI a HUD usa o que o terminal desenha:
+
+- **Os Clawds são pixel art feita para o terminal,** sem fundo, cada um com o que veste no desktop (chapéu, coroa, escudo, arco…). O palco aparece no painel encaixado ao lado da conversa (tela cheia, 110 colunas ou mais), grande com o painel livre e menor com plano, grupo ou inventário. O acampamento leva a fogueira, e o palco anima: o Clawd respira e a chama tremula.
+- **Cada classe tem um ícone** (🔮 Mago, 🐺 Bruxo, 🎭 Ilusionista…) onde só cabe uma linha: na faixa, no diário (à direita da linha de cada ferramenta), no spinner e no recibo, que entra no lugar do "Baked for 3s".
+- **Com um recurso em alerta,** ele aparece também no fim da linha de dicas embaixo do prompt.
+- **O que muda em relação ao desktop:** sem o painel encaixado não há palco (o painel abre acima do prompt, só com texto); a guarda mostra 🐉 no lugar do dragão, porque o motor só aceita 12 linhas em volta do diálogo e não aceita pixels ali; o spinner é desenhado pelo mod e não mostra os tokens; os tooltips viram texto escrito.
 
 ## 🦀 O grupo
 
@@ -312,7 +323,7 @@ flowchart LR
 │   │   │   ├── core/         # arte, textos pt/en, classes, preferências
 │   │   │   └── modules/      # diario, faixa, painel, campanha, recibo, mochila
 │   │   │                     # (com os recursos), guarda, grimorio
-│   │   ├── tests/            # 115 testes no motor (desktop e terminal)
+│   │   ├── tests/            # 121 testes no motor (desktop e terminal)
 │   │   └── types/            # contrato do $.state
 │   └── clawd-hud-spike/      # sondas para validar a API no app real
 ├── docs/                     # imagens do README e o estilo de saída briefing-de-bordo
@@ -334,14 +345,14 @@ bun run scripts/gerar-assets.ts
 bun run scripts/gerar-demo.ts
 ```
 
-São 115 testes da HUD e 5 do spike. Eles rodam no motor do próprio Claude Code (`claude plugin test`), nas superfícies desktop e terminal, e incluem regressões para cada achado do QA adversarial e da revisão do PR. A demo e as telas da galeria são desenhadas a partir da arte do próprio mod.
+São 121 testes da HUD e 5 do spike. Eles rodam no motor do próprio Claude Code (`claude plugin test`), nas superfícies desktop e terminal, e incluem regressões para cada achado do QA adversarial e da revisão do PR. A demo e as telas da galeria são desenhadas a partir da arte do próprio mod.
 
 Quer contribuir? Leia o [CONTRIBUTING](CONTRIBUTING.md). Achou uma falha de segurança? Siga a [política de segurança](SECURITY.md). As mudanças de cada versão estão no [CHANGELOG](CHANGELOG.md).
 
 ## 🗺️ Status e roadmap
 
 > [!IMPORTANT]
-> **Beta, app desktop primeiro.** Tudo passa no validador e nos testes do motor, mas o teste manual completo no app desktop ainda está em andamento. O spike (`mods/clawd-hud-spike`) existe para confirmar no app real o que os testes não alcançam, como a animação dos Svgs e o rodapé fixo. O suporte ao CLI (terminal) vem depois da versão desktop.
+> **Beta, app desktop primeiro.** Tudo passa no validador e nos testes do motor, mas o teste manual completo no app desktop ainda está em andamento. O spike (`mods/clawd-hud-spike`) existe para confirmar no app real o que os testes não alcançam, como a animação dos Svgs e o rodapé fixo. O CLI (terminal) é suportado desde a 0.7.
 
 - [x] Desenho: protótipos v1 a v6 e o final, validados por UX e por QA adversarial
 - [x] Fase 0: spike com as sondas dos 12 itens a validar
@@ -364,7 +375,7 @@ Quer contribuir? Leia o [CONTRIBUTING](CONTRIBUTING.md). Achou uma falha de segu
 - [ ] Teste manual completo no app desktop, e ajustes com o resultado
 - [ ] Primeira versão estável
 - [ ] Diff no inventário
-- [ ] Suporte ao Claude Code CLI (terminal), depois da versão desktop
+- [x] 0.7: a HUD no Claude Code CLI (terminal): os 19 Clawds em pixel art própria, o palco animado no painel, o ícone de cada classe na faixa, no diário, no spinner e no recibo
 
 ## 🙏 Créditos e referências
 

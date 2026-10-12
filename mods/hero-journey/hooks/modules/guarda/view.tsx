@@ -15,8 +15,37 @@ export const guardView = (c: Ctx, files: readonly GuardFile[]): RenderElement =>
   const { Box, Text, Code } = c.ui
   const names = files.map(f => f.name).join(', ')
   if (!c.desktop) {
-    const list = files.map(f => `${f.name} +${f.added}${f.removed > 0 ? ` −${f.removed}` : ''}`).join(' · ')
-    return <Text color="warning">🔒 {list}</Text>
+    // Terminal: o motor só aceita 12 linhas em volta do diálogo e recusa ali o Raster (as células contam
+    // como texto). O dragão vira 🐉 na linha do aviso; embaixo, os arquivos e até 4 linhas da mudança.
+    const changed = files.flatMap(f => f.diff.split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l)))
+    const shown = changed.slice(0, changed.length > 4 ? 3 : 4)
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="column">
+          <Text bold color="warning" wrap="truncate-end">
+            🐉 {c.t.guardTitle(names)}
+          </Text>
+          <Box flexDirection="column" paddingLeft={3}>
+            {files.slice(0, 2).map(f => (
+              <Box key={`guard-${f.path}`} flexDirection="row" columnGap={1}>
+                <Text bold>{f.name}</Text>
+                {f.added > 0 && <Text color="success">+{f.added}</Text>}
+                {f.removed > 0 && <Text color="error">−{f.removed}</Text>}
+                <Text dimColor wrap="truncate-start">
+                  {shortPath(f.path)}
+                </Text>
+              </Box>
+            ))}
+            {shown.map((l, i) => (
+              <Text key={`guard-l${i}`} color={l.startsWith('+') ? 'success' : 'error'} wrap="truncate-end">
+                {l}
+              </Text>
+            ))}
+            {changed.length > shown.length && <Text dimColor>{`+${changed.length - shown.length} …`}</Text>}
+          </Box>
+        </Box>
+      </Box>
+    )
   }
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1} gap={1}>

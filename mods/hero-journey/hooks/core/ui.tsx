@@ -3,10 +3,13 @@
 
 import type { EngineInterface } from 'claude-code'
 
-import type { Palette, Skin } from '../../types'
+import type { Cls, Palette, Skin } from '../../types'
 import type { Art } from './art'
 import { heroTitle } from './art'
 import type { Dict } from './i18n'
+import { rasterOfPixels } from './raster'
+import { TH, TW, tsprite } from './tsprites'
+import type { TPose } from './tsprites'
 
 export type Ui = ReturnType<EngineInterface['ui']['resolve']>
 type DesktopUi = Extract<Ui, { Svg: unknown }>
@@ -14,7 +17,7 @@ type DesktopUi = Extract<Ui, { Svg: unknown }>
 export const GITHUB_URL = 'https://github.com/soulrocha/Claude-code-hero-journey'
 /** O LinkedIn do Saulo, no "Sobre". */
 export const LINKEDIN_URL = 'https://www.linkedin.com/in/soulrocha'
-export const VERSION = '0.6.0'
+export const VERSION = '0.7.0'
 
 export type Ctx = {
   ui: Ui
@@ -23,6 +26,8 @@ export type Ctx = {
   palette: Palette
   skin: Skin
   width: number
+  /** No terminal, o painel acima do prompt (sem o modo tela cheia): sem palco, para não comer a conversa. */
+  inline?: boolean
   /** O tom quente do painel; ausente quando o tema do Claude é automático (não dá para saber se é claro). */
   bg?: string
 }
@@ -65,3 +70,19 @@ type InputUi = Extract<Ui, { Input: unknown }>
 
 /** O campo de texto, nas superfícies que têm (desktop e terminal); senão, nada. */
 export const inputOf = (ui: Ui): InputUi['Input'] | undefined => ('Input' in ui ? (ui as InputUi).Input : undefined)
+
+type TerminalUi = Extract<Ui, { Raster: unknown }>
+
+/** Uma barra em texto, para o terminal: ▰ cheio e ▱ vazio. */
+export const textBar = (pct: number, width: number) => {
+  const full = Math.max(0, Math.min(width, Math.round((pct / 100) * width)))
+  return { full: '▰'.repeat(full), empty: '▱'.repeat(width - full) }
+}
+
+/** Um Clawd do terminal (pixel art própria), `scale` 1 (24×7 células) ou 2 (48×13). */
+export const clawdArt = (c: Ctx, cls: Cls, pose: TPose, key: string, scale = 1, camp = false) => {
+  if (c.desktop || !('Raster' in c.ui)) return null
+  const r = rasterOfPixels(tsprite(cls, pose, camp), TW, TH, key, scale)
+  const { Raster } = c.ui as TerminalUi
+  return <Raster key={key} columns={r.columns} rows={r.rows} cells={r.cells} />
+}
