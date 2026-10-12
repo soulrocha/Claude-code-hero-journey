@@ -1,52 +1,58 @@
-// Gera as imagens do README a partir da arte real da HUD (mods/hero-journey/hooks/core/art.ts):
-// o banner animado e o ícone animado de cada classe, nas versões escura e clara.
-//   bun run scripts/gerar-assets.ts
-// A demo animada e os prints vêm de scripts/gravar-demo.cjs (protótipo + Playwright + ffmpeg).
+// Gera as imagens do README a partir da arte real da HUD (mods/hero-journey/hooks/core):
+// o banner animado (escuro e claro), o Clawd de cada classe sem fundo (serve nos
+// dois temas) e o acampamento, acordado e dormindo.
+//   bun run scripts/gerar-assets.ts          (da raiz do repositório)
+// A demo animada e os prints vêm do protótipo de referência, fora deste repositório.
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { CLASSES, crab, esc } from '../mods/hero-journey/hooks/core/art'
+import { esc } from '../mods/hero-journey/hooks/core/doc'
+import { stageArt } from '../mods/hero-journey/hooks/core/cenarios'
+import { spriteArt, spriteInner, SPRITE_H, SPRITE_W } from '../mods/hero-journey/hooks/core/sprites'
 import { DICT } from '../mods/hero-journey/hooks/core/i18n'
-import type { Palette } from '../mods/hero-journey/types'
+import type { Cls, Palette } from '../mods/hero-journey/types'
 
-const OUT = join(import.meta.dir, '..', 'docs', 'assets')
+const OUT = join(process.cwd(), 'docs', 'assets')
 mkdirSync(join(OUT, 'classes'), { recursive: true })
 
+/** As 19 classes, na ordem do README (a do mapa em docs/classes.md). */
+const CLASSES = Object.keys(DICT.pt.className) as Cls[]
+
 const THEME = {
-  escuro: { bg: '#1f1e1d', panel: '#2b2a27', line: '#45433e', text: '#ece9df', muted: '#b3b0a6', gild: '#d9b26a', gildDim: '#8a7346' },
-  claro: { bg: '#faf9f5', panel: '#f3f1ea', line: '#dcd8cc', text: '#1f1e1d', muted: '#57554f', gild: '#7a5310', gildDim: '#c9b48a' },
+  escuro: { panel: '#2b2a27', line: '#45433e', text: '#ece9df', muted: '#b3b0a6', gild: '#d9b26a', gildDim: '#8a7346' },
+  claro: { panel: '#f3f1ea', line: '#dcd8cc', text: '#1f1e1d', muted: '#57554f', gild: '#7a5310', gildDim: '#c9b48a' },
 } as const
 
-/** Tira o <svg> de fora de uma arte, para encaixá-la num quadro maior. */
-const inner = (source: string) => {
-  const open = source.indexOf('>') + 1
-  const viewBox = /viewBox="([^"]+)"/.exec(source)?.[1] ?? '0 0 100 100'
-  return { viewBox, body: source.slice(open, source.lastIndexOf('</svg>')) }
-}
+// ---------- O Clawd de cada classe e o acampamento ----------
 
-// ---------- Ícones das classes ----------
-
-for (const palette of ['escuro', 'claro'] as const) {
-  for (const cls of CLASSES) {
-    const art = crab(cls, 120, palette, `${DICT.pt.className[cls]} / ${DICT.en.className[cls]}`, true)
-    writeFileSync(join(OUT, 'classes', `${cls}-${palette}.svg`), art.source)
-  }
+// Os ícones antigos (um por tema) dão lugar a um só por classe.
+for (const f of readdirSync(join(OUT, 'classes'))) rmSync(join(OUT, 'classes', f))
+for (const cls of CLASSES) {
+  const alt = `${DICT.pt.className[cls]} / ${DICT.en.className[cls]}`
+  writeFileSync(join(OUT, 'classes', `${cls}.svg`), spriteArt(cls, 'work', 168, alt).source)
 }
+writeFileSync(join(OUT, 'acampamento.svg'), stageArt('aprendiz', 'idle', 'acampamento', 350, 220, 'Acampamento: esperando você / Camp: waiting for you').source)
+writeFileSync(join(OUT, 'acampamento-noite.svg'), stageArt('aprendiz', 'sleep', 'acampamento', 350, 220, 'Acampamento: dormindo / Camp: asleep').source)
 
 // ---------- Banner ----------
 
 const banner = (palette: Palette) => {
   const t = THEME[palette]
   const W = 1200
-  const H = 350
+  const H = 432
+  // Duas fileiras (10 e 9), em quincôncio: o sprite tem margem dos lados, então os acessórios cabem entre vizinhos.
   const size = 132
-  const step = (W - 140) / (CLASSES.length - 1)
+  const h = (size * SPRITE_H) / SPRITE_W
+  const perRow = 10
+  const step = (W - 160) / (perRow - 1)
   const crabs = CLASSES.map((cls, i) => {
-    const { viewBox, body } = inner(crab(cls, size, palette, DICT.pt.className[cls], true).source)
-    const x = 70 + i * step - size / 2
+    const row = i < perRow ? 0 : 1
+    const col = row === 0 ? i : i - perRow + 0.5
+    const x = 80 + col * step - size / 2
+    const y = row === 0 ? 190 : 276
     // Cada um balança com um atraso diferente, como um grupo em marcha.
-    return `<g style="animation:hop 2.4s ease-in-out ${(i * 0.18).toFixed(2)}s infinite"><svg x="${x.toFixed(1)}" y="186" width="${size}" height="${Math.round((size * 76) / 130)}" viewBox="${viewBox}">${body}</svg></g>`
+    return `<g style="animation:hop 2.4s ease-in-out ${(i * 0.14).toFixed(2)}s infinite"><svg x="${x.toFixed(1)}" y="${y}" width="${size}" height="${h.toFixed(1)}" viewBox="0 0 ${SPRITE_W} ${SPRITE_H}" overflow="visible">${spriteInner(cls, 'work')}</svg></g>`
   }).join('')
   const sparkles = [
     [120, 40, 0],
@@ -73,8 +79,8 @@ g,text{transform-box:fill-box}
 <text x="600" y="168" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="19" fill="${t.muted}">${esc('Uma HUD de RPG aconchegante para o Claude Code · A cozy RPG HUD for Claude Code')}</text>
 ${sparkles}
 ${crabs}
-<line x1="60" y1="300" x2="${W - 60}" y2="300" stroke="${t.line}" stroke-width="2"/>
-<text x="600" y="330" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="${t.muted}">${esc(CLASSES.map(c => DICT.pt.className[c]).join(' · '))}</text>
+<line x1="60" y1="386" x2="${W - 60}" y2="386" stroke="${t.line}" stroke-width="2"/>
+<text x="600" y="413" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="${t.muted}">${esc(`${CLASSES.length} classes: cada tarefa do Claude veste uma · ${CLASSES.length} classes: every Claude task wears one`)}</text>
 </svg>
 `
 }

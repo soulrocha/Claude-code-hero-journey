@@ -42,9 +42,9 @@ const edited = () =>
 
 const engineRow = () => ({ type: 'Text', props: {}, children: ['linha do motor'] }) as never
 
-for (const [option, mochila, about] of [
-  ['pt-BR', 'Mochila 34%', 'Projeto no GitHub'],
-  ['en', 'Backpack 34%', 'Project on GitHub'],
+for (const [option, mochila, about, camp] of [
+  ['pt-BR', 'Mochila', 'Projeto no GitHub', 'Sua vez'],
+  ['en', 'Backpack', 'Project on GitHub', 'Your turn'],
 ] as const) {
   test(`painel em ${option}: rodapé, configurações e Sobre`, { options: { language: option } }, async ($, on) => {
     on('session.usage', usage)
@@ -57,9 +57,12 @@ for (const [option, mochila, about] of [
 
     const ui = await $.ui.mount(pane('desktop'))
     expect(await ui.find({ key: 'grimorio' })).toBeDefined()
-    const svgs = await ui.findAll({ type: 'Svg' })
-    expect(svgs.some(s => String(s.props.alt).includes(mochila))).toBe(true)
-    expect(svgs.length).toBeGreaterThan(2)
+    // O palco no topo: sem turno ainda, o acampamento; os recursos em texto nativo, com a barra no meio.
+    expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain(camp)
+    expect(await ui.find({ text: new RegExp(mochila) })).toBeDefined()
+    expect(await ui.find({ text: /34%/ })).toBeDefined()
+    // A Mochila é o botão de compactar.
+    expect(await ui.find({ key: 'compact' })).toBeDefined()
 
     await ui.press({ key: 'config' })
     await ui.press({ key: 'lang-en' })
@@ -90,11 +93,12 @@ test('no terminal o painel desenha só texto', { options: { language: 'pt-BR' } 
   on('session.usage', usage)
   const ui = await $.ui.mount(pane('terminal'))
   expect(await ui.find({ type: 'Svg' })).toBeUndefined()
-  expect(await ui.find({ text: /OBJETIVO|Objetivo/ })).toBeDefined()
+  expect(await ui.find({ text: /Sua vez/ })).toBeDefined()
+  expect(await ui.find({ text: /Mochila 34%/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('cada edição ganha o pet e o selo; nada se esconde (o app já agrupa no fim do turno)', { options: { language: 'pt-BR' } }, async ($, on) => {
+test('cada edição ganha o pet, quem agiu e o resultado em texto; nada se esconde (o app já agrupa no fim do turno)', { options: { language: 'pt-BR' } }, async ($, on) => {
   on('tool.call', { tool: 'Edit' }, edited)
   on('ui.render', { component: 'ToolUse' }, engineRow)
   const call = (id: string) =>
@@ -113,9 +117,13 @@ test('cada edição ganha o pet e o selo; nada se esconde (o app já agrupa no f
 
   for (const id of ['e1', 'e2']) {
     const ui = await row(id)
-    expect(await ui.find({ text: /linha do motor/ })).toBeDefined()
-    const svgs = await ui.findAll({ type: 'Svg' })
-    expect(svgs.some(s => String(s.props.alt).includes('+2 −1'))).toBe(true)
+    // A linha é do mod (sem o trilho do app): o pet, a classe, o arquivo e o resultado em texto nativo.
+    expect(await ui.find({ text: /linha do motor/ })).toBeUndefined()
+    expect(await ui.find({ text: /^Rúnico$/ })).toBeDefined()
+    expect(await ui.find({ text: /^app\.ts$/ })).toBeDefined()
+    expect(await ui.find({ text: /^\+2 −1$/ })).toBeDefined()
+    expect(await ui.find({ text: /^✓$/ })).toBeDefined()
+    expect((await ui.findAll({ type: 'Svg' })).length).toBe(1)
     expect(await ui.find({ key: `split-${id}` })).toBeUndefined()
     await ui.unmount()
   }
@@ -127,9 +135,11 @@ test('a faixa mostra a classe e o que ela faz enquanto o Claude trabalha', { opt
   on('session.usage', usage)
   await $.tool.call({ tool: 'Bash', tool_use_id: 'b1', command: 'npm test', description: 'Roda os testes do módulo' } as never)
 
-  // A faixa é um Svg enxuto: o pet, a ação curta e o ◈ que abre e fecha o painel.
+  // A faixa, em uma linha: o pet da classe, quem age e o que faz, e o ◈ que abre e fecha o painel.
   const working = await $.ui.mount(band(true))
-  expect(String((await working.find({ type: 'Svg' }))?.props.alt)).toBe('Paladino · Roda os testes do módulo')
+  expect(String((await working.find({ type: 'Svg' }))?.props.alt)).toBe('Bruxo · Roda os testes do módulo')
+  expect(await working.find({ text: /^Bruxo$/ })).toBeDefined()
+  expect(await working.find({ text: /Roda os testes do módulo/ })).toBeDefined()
   expect(await working.find({ key: 'hero-toggle' })).toBeDefined()
   await working.unmount()
 
@@ -148,14 +158,15 @@ test('a mochila leva a instrução do /compact ao prompt, sem gastar tokens', { 
     return { isFilled: true } as never
   })
 
+  // A Mochila do rodapé é o botão de compactar.
   const p = await $.ui.mount(pane('desktop'))
-  await p.press({ key: 'config' })
-  await p.press({ key: 'mochila' })
+  await p.press({ key: 'compact' })
   await p.unmount()
 
-  const card = await $.ui.mount(band(false))
-  expect(await card.find({ text: /Mochila cheia/ })).toBeDefined()
-  await card.press({ key: 'card-fill' })
+  // Com o Claude trabalhando, o Compactar leva a instrução ao prompt.
+  const card = await $.ui.mount(band(true))
+  expect(await card.find({ text: /Mochila em/ })).toBeDefined()
+  await card.press({ key: 'card-now' })
   expect(filled).toStartWith('/compact ')
   await card.unmount()
 })

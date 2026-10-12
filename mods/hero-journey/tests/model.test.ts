@@ -1,13 +1,49 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { DiaryEntry } from '../types'
-import { classOf } from '../hooks/core/classes'
+import type { DiaryEntry, Inscription } from '../types'
+import { agentClass, classOf, delivers, readsOnly } from '../hooks/core/classes'
 import { looksPortuguese, resolveLang } from '../hooks/core/i18n'
-import { DEFAULT_PREFS, isOn, migratePrefs, toggleModule } from '../hooks/core/prefs'
+import { DEFAULT_MEMORY, DEFAULT_PREFS, isOn, migratePrefs, toggleModule } from '../hooks/core/prefs'
 import { buildReport, briefingOf, newCampaign, onPrompt } from '../hooks/modules/campanha/campanha'
 import { alertOf, bagOf, countdown, readingOf, warningsOf, windowOf } from '../hooks/modules/mochila/recursos'
 import { leadOf, receiptOf } from '../hooks/modules/recibo/recibo'
-import { appendDecision, detect, isSubfolder, memoryTool, mentionsPrivate, oneLine, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
+import { layoutOf, NAP_MS, sceneOf, STAGE_MAX, STAGE_MIN, stepWindow } from '../hooks/modules/painel/palco'
+import { appendDecision, continuePrompt, cycleDest, detect, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, suggest, taskPrefix, taskText, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
+
+describe('marco e página do ai-memory', () => {
+  test('marco é entrega de verdade: commit, push e PR; mandar arquivo ou e-mail não', () => {
+    expect(delivers('Bash', { command: 'git commit -m "x" && git push' })).toBe(true)
+    expect(delivers('PowerShell', { command: 'gh pr create --fill' })).toBe(true)
+    expect(delivers('mcp__github__create_pull_request', {})).toBe(true)
+    expect(delivers('SendUserFile', { files: ['a.html'] })).toBe(false)
+    expect(delivers('mcp__gmail__send_message', {})).toBe(false)
+    expect(delivers('Bash', { command: 'git status', description: 'commit pending?' })).toBe(false)
+  })
+
+  test('a página do ai-memory leva data, origem e o lembrete de conferir no código', () => {
+    const i: Inscription = { id: 'x', kind: 'decisao', text: 'Listas grandes paginam no servidor.', source: 'turno', destinations: ['aiMemory'] }
+    const [w] = writesFor(i, { repo: '/repo', vault: '', memory: { server: 'ai-memory' } }, Date.UTC(2026, 9, 11, 12))
+    expect(w?.text).toContain('data: 2026-10-11')
+    expect(w?.text).toContain('origem: hero-journey')
+    expect(w?.text).toContain('conferir: no código')
+  })
+})
+
+describe('escopo do ai-memory', () => {
+  test('o marcador: só as chaves de cima, antes da primeira seção', () => {
+    expect(parseMarker('workspace = "movvia"\nproject = "pe-portais"\n')).toEqual({ workspace: 'movvia', project: 'pe-portais' })
+    expect(parseMarker('workspace = \'pessoal\'\n\n[profile]\nproject = "nao-vale"\n')).toEqual({ workspace: 'pessoal' })
+    expect(parseMarker('# nada aqui\n')).toEqual({})
+  })
+
+  test('o projeto pelo remoto: sem o host, "/" vira "-", em minúsculas', () => {
+    expect(projectFromRemote('https://github.com/soulrocha/Claude-code-hero-journey.git')).toBe('soulrocha-claude-code-hero-journey')
+    expect(projectFromRemote('git@github.com:acme/api.git')).toBe('acme-api')
+    expect(projectFromRemote('ssh://git@dev.azure.com/v3/acme/Portal/portal-api')).toBe('v3-acme-portal-portal-api')
+    expect(projectFromRemote('C:/repos/local')).toBe('')
+    expect(safeName('Meu Projeto!')).toBe('meu-projeto')
+  })
+})
 import { diffOf, makeGuard, verdictOf, LABELS } from '../hooks/modules/guarda/guarda'
 import { parseInventory, rarityOf, questView } from '../hooks/modules/painel/painel'
 import { withScheme } from '../hooks/core/ui'
@@ -17,19 +53,54 @@ import { humanType } from '../hooks/core/classes'
 import { objectiveBar } from '../hooks/core/art'
 
 describe('classes', () => {
-  test('cada classe da tabela do handoff tem a sua atividade', async () => {
+  test('cada família de docs/classes.md tem a sua classe', async () => {
     expect(classOf('Read', {})).toBe('mago')
+    expect(classOf('Bash', { command: 'git status && git log -3' })).toBe('mago')
+    expect(classOf('PowerShell', { command: 'Get-ChildItem src | Select-Object Name' })).toBe('mago')
+    expect(classOf('WebSearch', {})).toBe('cacador')
+    expect(classOf('mcp__claude-in-chrome__navigate', {})).toBe('ladino')
+    expect(classOf('Edit', { file_path: 'src/api/Service.cs' })).toBe('runico')
     expect(classOf('Edit', { file_path: 'src/app/home.component.html' })).toBe('ilusionista')
-    expect(classOf('Edit', { file_path: 'src/api/Service.cs' })).toBe('artifice')
-    expect(classOf('Bash', { command: 'npm test' })).toBe('paladino')
-    expect(classOf('Bash', { command: 'az pipelines runs list' })).toBe('patrulheiro')
-    expect(classOf('Edit', { file_path: 'azure-pipelines.yml' })).toBe('patrulheiro')
-    expect(classOf('Bash', { command: 'dotnet ef database update' })).toBe('anao')
-    expect(classOf('Bash', { command: 'git push origin main' })).toBe('arauto')
-    expect(classOf('mcp__github__create_pull_request', {})).toBe('arauto')
-    expect(classOf('mcp__claude_ai_Gmail__send', {})).toBe('alquimista')
-    expect(classOf('TodoWrite', {})).toBe('druida')
-    expect(classOf('Agent', { subagent_type: 'Explore', description: 'Mapear o módulo' })).toBe('mago')
+    expect(classOf('Write', { file_path: 'docs/plano.md' })).toBe('sabio')
+    expect(classOf('Bash', { command: 'npm install' })).toBe('engenheiro')
+    expect(classOf('Bash', { command: 'npm test' })).toBe('bruxo')
+    expect(classOf('Bash', { command: 'git push origin main' })).toBe('rei')
+    expect(classOf('mcp__github__create_pull_request', {})).toBe('rei')
+    expect(classOf('mcp__claude_ai_Gmail__send_message', {})).toBe('rei')
+    expect(classOf('Bash', { command: 'az pipelines runs list' })).toBe('artifice')
+    expect(classOf('Edit', { file_path: 'azure-pipelines.yml' })).toBe('artifice')
+    expect(classOf('Bash', { command: 'docker logs api --tail 50' })).toBe('oraculo')
+    expect(classOf('Monitor', {})).toBe('oraculo')
+    expect(classOf('Bash', { command: 'dotnet ef database update' })).toBe('geomante')
+    expect(classOf('Bash', { command: 'curl -s https://api.exemplo.com' })).toBe('alquimista')
+    expect(classOf('mcp__stripe__list_customers', {})).toBe('alquimista')
+    expect(classOf('mcp__slack__send_message', {})).toBe('rei')
+    expect(classOf('TodoWrite', {})).toBe('cartomante')
+    expect(classOf('Agent', { subagent_type: 'Explore', description: 'Mapear o módulo' })).toBe('invocador')
+    expect(classOf('CronCreate', {})).toBe('cronomante')
+    expect(classOf('Skill', {})).toBe('sabio')
+    expect(classOf('ReportFindings', {})).toBe('paladino')
+    expect(classOf('mcp__figma__get_design_context', {})).toBe('pintor')
+    expect(classOf('AskUserQuestion', {})).toBe('aprendiz')
+  })
+
+  test('comando que só lê é do Mago; o que grava, apaga ou redireciona é do Engenheiro', async () => {
+    expect(readsOnly('cat package.json | head -20')).toBe(true)
+    expect(readsOnly('cd src && ls')).toBe(true)
+    expect(readsOnly('grep -rn TODO src 2>/dev/null')).toBe(true)
+    expect(readsOnly('echo oi > notas.txt')).toBe(false)
+    expect(readsOnly('find . -name "*.tmp" -delete')).toBe(false)
+    expect(readsOnly('sed -i s/a/b/ x.txt')).toBe(false)
+    expect(readsOnly('npm run build')).toBe(false)
+  })
+
+  test('o subagente ganha a classe do que vai fazer', async () => {
+    expect(agentClass('Explore', 'Mapear o módulo')).toBe('mago')
+    expect(agentClass('general-purpose', 'Pesquisar na web a doc oficial')).toBe('cacador')
+    expect(agentClass('Plan', 'Plan the migration')).toBe('cartomante')
+    expect(agentClass('qa-adversarial', 'Auditar o diff')).toBe('bruxo')
+    expect(agentClass('general-purpose', 'Security review do PR')).toBe('paladino')
+    expect(agentClass('general-purpose', 'Implementar o endpoint')).toBe('runico')
   })
 })
 
@@ -191,7 +262,7 @@ describe('módulos', () => {
     expect(isOn(toggleModule(off, 'guarda'), 'guarda')).toBe(true)
     // Prefs de antes da simplificação: perfis, seções, modo do diário e módulos que saíram somem.
     const old = migratePrefs({ profile: 'foco', hidden: ['grupo'], diary: 'separado', partyJoined: true, skin: 'sobrio', modules: { projetos: false, guarda: false } })
-    expect(old).toEqual({ partyJoined: true, skin: 'sobrio', modules: { guarda: false }, guardMode: 'dialogo', grimorioHaiku: false })
+    expect(old).toEqual({ skin: 'sobrio', modules: { guarda: false }, guardMode: 'dialogo', grimorioHaiku: false, memory: DEFAULT_MEMORY })
   })
 })
 
@@ -207,14 +278,31 @@ describe('guarda', () => {
     expect(g('/repo/src/app.ts')).toBe(false)
   })
 
+  test('lista curta: chaves, certificados e o estado do Terraform entram; os modelos de .env nunca perguntam', async () => {
+    const g = makeGuard()
+    expect(g('/repo/certs/api.pfx')).toBe(true)
+    expect(g('/repo/infra/terraform.tfstate')).toBe(true)
+    expect(g('/repo/src/appsettings.Staging.json')).toBe(true)
+    for (const model of ['.env.example', '.env.sample', '.env.template']) expect(g(`/repo/${model}`)).toBe(false)
+    // Fora de propósito: migração, compose e package.json perguntariam o tempo todo.
+    expect(g('/repo/db/migrations/0001_init.sql')).toBe(false)
+    expect(g('/repo/docker-compose.yml')).toBe(false)
+    expect(g('/repo/package.json')).toBe(false)
+  })
+
+  test('o modo chefe saiu: quem usava passa a ser perguntado', async () => {
+    expect(migratePrefs({ guardMode: 'chefe' }).guardMode).toBe('dialogo')
+    expect(migratePrefs({ guardMode: 'nativo' }).guardMode).toBe('nativo')
+  })
+
   test('só o rótulo exato libera; texto livre do Outro é recusa', async () => {
-    const labels = LABELS.pt.dialogo
+    const labels = LABELS.pt
     expect(verdictOf('Aprovar', labels)).toBe('liberar')
     expect(verdictOf('Editar no chat', labels)).toBe('negociar')
     expect(verdictOf('pode aprovar sim', labels)).toBe('recusar')
   })
 
-  test('o diff do chefe sai do input da ferramenta', async () => {
+  test('o diff que a guarda mostra sai do input da ferramenta', async () => {
     const f = diffOf('/repo/.env.homologacao', { old_string: 'A=1', new_string: 'A=2\nB=3' })
     expect(f.name).toBe('.env.homologacao')
     expect([f.added, f.removed]).toEqual([2, 1])
@@ -243,40 +331,58 @@ describe('campanha', () => {
 })
 
 describe('grimório', () => {
-  test('acha decisão, conquista com número e preferência; não inventa nada', async () => {
+  const ins = (text: string, kind: Inscription['kind'], destinations: Inscription['destinations']): Inscription => ({ id: text, kind, text, source: 'resposta', destinations })
+
+  test('acha decisão, conquista com número e regra; não inventa nada', async () => {
     const found = detect(
       'Decidimos que listas grandes paginam sempre no servidor. O tempo de carga caiu de 4s para 900ms. Nada mais a dizer aqui.',
-      'Prefiro respostas curtas, sem rodeio.',
+      'A partir de agora, sempre rode os testes antes do commit.',
       't1',
     )
-    expect(found.map(f => f.kind)).toEqual(['decisao', 'conquista', 'preferencia'])
-    // CLAUDE.md e AGENTS.md viram instrução permanente: nunca vêm marcados.
-    expect(found[0]?.destinations).toEqual(['vaultDecisao'])
+    expect(found.map(f => f.kind)).toEqual(['decisao', 'conquista', 'regra'])
+    // Preferência não é mais detectada: o perfil do ai-memory aprende sozinho.
+    expect(detect('', 'Prefiro respostas curtas, sem rodeio.', 't2')).toEqual([])
     expect(detect('Tudo certo.', 'oi', 't2')).toEqual([])
   })
 
-  test('sem pasta configurada o destino some; CLAUDE.md nunca recebe o vault', async () => {
-    const [found] = detect('Decidimos usar lazy load nas tabelas grandes.', '', 't1')
-    const d = { ...found!, destinations: ['claudeMd', 'agentsMd', 'vaultDecisao'] as const }
-    const noVault = writesFor({ ...d, destinations: [...d.destinations] }, { repo: '/repo', vault: '' }, 0)
-    expect(noVault.map(w => w.dest)).toEqual(['claudeMd', 'agentsMd'])
-    const leaky = { ...d, destinations: [...d.destinations], text: 'Decidimos guardar isso em C:\\Notas\\notas.' }
-    expect(mentionsPrivate(leaky.text, { vault: 'C:\\Notas' })).toBe(true)
-    expect(writesFor(leaky, { repo: '/repo', vault: 'C:\\Notas' }, 0).map(w => w.dest)).toEqual(['vaultDecisao'])
+  test('um destino só, sugerido pelo que a pessoa tem; sem vault, a crônica pergunta', async () => {
+    const vault = { vault: '/v' }
+    const none = { vault: '' }
+    expect(suggest('regra', none, 'auto')).toBe('agentsMd')
+    expect(suggest('decisao', vault, 'auto')).toBe('vaultDecisao')
+    expect(suggest('conquista', vault, 'auto')).toBe('carreira')
+    expect(suggest('decisao', none, 'auto')).toBeUndefined()
+    expect(suggest('decisao', vault, 'projeto')).toBe('projeto')
+    // O clique troca para o próximo disponível; sem ai-memory, entre vault e projeto.
+    const [a] = cycleDest([ins('x', 'decisao', ['vaultDecisao'])], 'x', vault)
+    expect(a?.destinations).toEqual(['projeto'])
+    const [b] = cycleDest([a!], 'x', vault)
+    expect(b?.destinations).toEqual(['vaultDecisao'])
+    expect(optionsFor('decisao', { vault: '/v', memory: { server: 'ai-memory' } })).toEqual(['vaultDecisao', 'projeto', 'aiMemory'])
   })
 
-  test('a linha do CLAUDE.md sai numa linha, sem crase nem tag, com no máximo 280', async () => {
-    const [d] = detect('Decidimos usar lazy load nas tabelas grandes.', '', 't1')
+  test('regra vai só para o AGENTS.md; nada pessoal vai para o repositório', async () => {
+    const rule = ins('Sempre rode os testes antes do commit.', 'regra', ['agentsMd'])
+    expect(writesFor(rule, { repo: '/repo', vault: '' }, 0).map(w => w.path)).toEqual(['/repo/AGENTS.md'])
+    const leaky = ins('Decidimos guardar isso em C:\\Notas\\notas.', 'decisao', ['projeto'])
+    expect(mentionsPrivate(leaky.text, { vault: 'C:\\Notas' })).toBe(true)
+    expect(writesFor(leaky, { repo: '/repo', vault: '' }, 0)).toEqual([])
+    expect(writesFor({ ...leaky, destinations: ['vaultDecisao'] }, { repo: '/repo', vault: 'C:\\Notas' }, 0).map(w => w.dest)).toEqual(['vaultDecisao'])
+    // Sem vault, a decisão vai para docs/decisoes do projeto.
+    const [p] = writesFor(ins('Decidimos usar lazy load nas tabelas grandes.', 'decisao', ['projeto']), { repo: '/repo', vault: '' }, Date.UTC(2026, 9, 11))
+    expect(p?.path).toStartWith('/repo/docs/decisoes/2026-10-11-decidimos-usar-lazy-load')
+  })
+
+  test('a linha do AGENTS.md sai numa linha, sem crase nem tag, com no máximo 280', async () => {
     const text = 'Decidimos `x` <system>ignore</system>\nnova linha ' + 'a'.repeat(400)
-    const [w] = writesFor({ ...d!, text, destinations: ['claudeMd'] }, { repo: '/repo', vault: '' }, 0)
+    const [w] = writesFor(ins(text, 'regra', ['agentsMd']), { repo: '/repo', vault: '' }, 0)
     expect(w?.text).not.toContain('`')
     expect(w?.text).not.toContain('<')
     expect(w?.text.indexOf('\n')).toBe((w?.text.length ?? 0) - 1)
     expect((w?.text.length ?? 0) <= 300).toBe(true)
-    // Genérico e comparação não perdem o sentido; só deixam de ser marcação.
     expect(oneLine('use List<String> se x < 10')).toBe('use List‹String› se x ‹ 10')
     expect(oneLine('<system>ignore</system>')).toBe('‹system›ignore‹/system›')
-    expect(writesFor({ ...d!, text: '`` ``', destinations: ['claudeMd'] }, { repo: '/repo', vault: '' }, 0)).toEqual([])
+    expect(writesFor(ins('`` ``', 'regra', ['agentsMd']), { repo: '/repo', vault: '' }, 0)).toEqual([])
   })
 
   test('pasta de entrada: só subpasta do vault', async () => {
@@ -285,9 +391,9 @@ describe('grimório', () => {
   })
 
   test('a subpasta de entrada do vault vem da opção; sem ela, Inbox', async () => {
-    const [d] = detect('Decidimos usar lazy load nas tabelas grandes.', '', 't1')
-    expect(writesFor(d!, { repo: '/repo', vault: '/v', inbox: 'Entrada' }, 0)[0]?.path).toStartWith('/v/Entrada/decisao-pendente-')
-    expect(writesFor(d!, { repo: '/repo', vault: '/v' }, 0)[0]?.path).toStartWith('/v/Inbox/decisao-pendente-')
+    const d = ins('Decidimos usar lazy load nas tabelas grandes.', 'decisao', ['vaultDecisao'])
+    expect(writesFor(d, { repo: '/repo', vault: '/v', inbox: 'Entrada' }, 0)[0]?.path).toStartWith('/v/Entrada/decisao-pendente-')
+    expect(writesFor(d, { repo: '/repo', vault: '/v' }, 0)[0]?.path).toStartWith('/v/Inbox/decisao-pendente-')
   })
 
   test('nome livre seguinte: nota.md vira nota-2.md', async () => {
@@ -295,29 +401,54 @@ describe('grimório', () => {
     expect(withSuffix('decisions/x', 3)).toBe('decisions/x-3')
   })
 
-  test('memoryTool: servidor pelo nome da ferramenta e scope pela versão', async () => {
-    expect(memoryTool([{ name: 'mcp__ai-memory__memory_write_page', description: 'scope: "global" only' }])).toEqual({ server: 'ai-memory', scope: 'global' })
-    expect(memoryTool([{ name: 'mcp__ai-memory__memory_write_page', description: 'pass `scope: "profile"` for a preference' }])?.scope).toBe('profile')
+  test('memoryTool: o servidor pelo nome da ferramenta', async () => {
+    expect(memoryTool([{ name: 'mcp__ai-memory__memory_write_page', description: '' }])).toEqual({ server: 'ai-memory' })
     expect(memoryTool([{ name: 'mcp__memoria__memory_write_page', description: '' }])?.server).toBe('memoria')
     expect(memoryTool([{ name: 'Bash', description: '' }])).toBeUndefined()
   })
 
-  test('ai-memory: preferência vai para workflow/ com o scope do servidor; sem MCP o destino some', async () => {
-    const [p] = detect('', 'Prefiro respostas curtas, sem rodeio.', 't1')
-    const memory = { server: 'ai-memory', scope: 'profile' as const }
-    const [w] = writesFor(p!, { repo: '/repo', vault: '', memory }, Date.UTC(2026, 9, 9, 13, 5, 7))
-    expect(w?.path).toBe('workflow/2026-10-09-prefiro-respostas-curtas-sem-rodeio-130507.md')
-    expect(w?.scope).toBe('profile')
-    expect(w?.text).toContain('Prefiro respostas curtas')
-    expect(writesFor(p!, { repo: '/repo', vault: '' }, 0)).toEqual([])
+  test('a regra entra sob "## Regras" sem repetir, e o Desfazer tira a linha', async () => {
+    const once = appendDecision('# Projeto\n\nTexto.\n', '- Usar lazy load\n', 'Regras')
+    expect(once).toContain('## Regras\n\n- Usar lazy load')
+    expect(appendDecision(once, '- Usar lazy load\n', 'Regras')).toBe(once)
+    expect(removeLine(once, '- Usar lazy load\n')).not.toContain('lazy load')
+  })
+})
+
+describe('salvar progresso', () => {
+  test('a tarefa mora no vault (repositório público) ou no projeto, com ID pelas iniciais', async () => {
+    expect(progressHome('C:/Projetos/claude-code-hero-journey', 'C:/Vault')).toBe('C:/Vault/.tarefas/claude-code-hero-journey')
+    expect(progressHome('/repo/loja', '')).toBe('/repo/loja/.hero/tarefas')
+    expect(taskPrefix('claude-code-hero-journey')).toBe('CCHJ')
+    expect(nextTaskId(['CCHJ-001.md', 'CCHJ-007.md', '_modelo.md'], 'CCHJ')).toBe('CCHJ-008')
+    expect(nextTaskId([], 'LOJA')).toBe('LOJA-001')
   })
 
-  test('a decisão entra sob "## Decisões" sem repetir', async () => {
-    const once = appendDecision('# Projeto\n\nTexto.\n', '- Usar lazy load\n', 'Decisões')
-    expect(once).toContain('## Decisões\n\n- Usar lazy load')
-    expect(appendDecision(once, '- Usar lazy load\n', 'Decisões')).toBe(once)
-    const twice = appendDecision(once, '- Paginar no servidor\n', 'Decisões')
-    expect(twice.indexOf('Paginar')).toBeGreaterThan(twice.indexOf('lazy'))
+  test('salvar de novo atualiza a mesma tarefa: próximo passo novo, verificar mantido, log e falhas só crescem', async () => {
+    const at = new Date(2026, 9, 11, 18, 40).getTime()
+    const base = { id: 'CCHJ-001', project: 'claude-code-hero-journey', at, title: 'Hero Journey 0.6', objective: 'Fechar a 0.6', next: 'Testar no app', verify: 'abrir /hero', failed: ['npm install'], logLine: 'pc-casa | Claude Code | 4 ações' }
+    const first = saveTask(undefined, base)
+    const text = taskText(first)
+    expect(text).toContain('id: CCHJ-001')
+    expect(text).toContain('status: em-andamento')
+    expect(text).toContain('## Próximo passo\nTestar no app')
+    const back = parseTask(text)
+    expect(back?.title).toBe('Hero Journey 0.6')
+    expect(back?.verify).toBe('abrir /hero')
+    const second = saveTask(back, { ...base, at: at + 60_000, next: 'Abrir o PR', verify: '', failed: ['npm install', 'tsc'], logLine: 'pc-trabalho | Codex | 2 ações' })
+    expect(second.next).toBe('Abrir o PR')
+    expect(second.verify).toBe('abrir /hero')
+    expect(second.failed).toEqual(['npm install', 'tsc'])
+    expect(second.log.length).toBe(2)
+    expect(second.log[1]).toContain('pc-trabalho | Codex')
+    // Lê também o modelo do vault, com CRLF.
+    expect(parseTask('---\r\nid: XX-000\r\nstatus: aberta\r\n---\r\n\r\n# XX-000: título curto\r\n')?.status).toBe('aberta')
+    expect(parseTask('# sem frontmatter')).toBeUndefined()
+  })
+
+  test('o Continuar pede para ler a tarefa e conferir antes de mexer', async () => {
+    expect(continuePrompt('pt', 'Hero Journey 0.6', '/v/.tarefas/x/CCHJ-001.md')).toContain('confira o "Como verificar" antes de mexer')
+    expect(projectName('C:\\Projetos\\loja')).toBe('loja')
   })
 })
 
@@ -379,5 +510,37 @@ describe('achados do Devin no PR #2', () => {
   test('palavras portuguesas repetidas também contam', async () => {
     expect(looksPortuguese('leia isto e leia aquilo')).toBe(true)
     expect(looksPortuguese('Read the file and summarize it')).toBe(false)
+  })
+})
+
+describe('palco', () => {
+  test('parado: acordado logo depois do turno, dormindo depois de alguns minutos', async () => {
+    expect(sceneOf({ busy: false }, null, [], 0).mode).toBe('fresh')
+    expect(sceneOf({ busy: false, endedAt: 1000 }, null, [], 1000 + 60_000)).toMatchObject({ mode: 'wait', pose: 'idle', place: 'acampamento' })
+    expect(sceneOf({ busy: false, endedAt: 1000 }, null, [], 1000 + NAP_MS + 1)).toMatchObject({ mode: 'sleep', pose: 'sleep' })
+  })
+
+  test('trabalhando: a classe da ferramenta no cenário dela; a falha da última troca a pose', async () => {
+    const work = { tool: 'Grep', cls: 'mago' as const, summary: 'TODO' }
+    expect(sceneOf({ busy: true }, work, [entry('a', { cls: 'mago' })], 0)).toMatchObject({ mode: 'work', hero: 'mago', place: 'biblioteca' })
+    expect(sceneOf({ busy: true }, work, [entry('a', { status: 'err' })], 0)).toMatchObject({ mode: 'fail', pose: 'fail' })
+    expect(sceneOf({ busy: true }, null, [], 0)).toMatchObject({ mode: 'think', hero: 'aprendiz', place: 'treino' })
+  })
+
+  test('o palco cresce sem plano, grupo nem inventário; com eles fica compacto', async () => {
+    expect(layoutOf(40, { goal: true, steps: 0, party: 0, items: 0 }).stage).toBe(STAGE_MAX)
+    expect(layoutOf(20, { goal: true, steps: 0, party: 0, items: 0 }).stage).toBeGreaterThanOrEqual(STAGE_MIN)
+    const busy = layoutOf(40, { goal: true, steps: 4, party: 2, items: 9 })
+    expect(busy.stage).toBe(STAGE_MIN)
+    expect(busy.maxCards).toBe(2)
+    expect(busy.maxItems).toBeLessThanOrEqual(6)
+    expect(layoutOf(12, { goal: true, steps: 4, party: 2, items: 9 }).pinned).toBe(false)
+  })
+
+  test('com muitos passos, os feitos viram uma linha e o atual fica à vista', async () => {
+    const steps = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((name, i) => ({ name, state: i < 4 ? 'done' : i === 4 ? 'now' : 'next' }) as const)
+    const w = stepWindow(steps, 5)
+    expect(w.hidden).toBe(3)
+    expect(w.shown.map(s => s.name)).toEqual(['d', 'e', 'f', 'g'])
   })
 })

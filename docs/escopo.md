@@ -34,7 +34,7 @@ O tema de RPG é o jeito de responder: a classe dá cor e mascote à ação, a q
 | **Faixa acima do prompt** | Uma linha: classe e intenção durante o turno, trilha do objetivo, subagentes em expedição, ◈ para o painel. Ganha um selo de recurso **só quando algum entra em alerta**. |
 | **Painel** (`/hero`) | Objetivo com a barra de passos (com ✦ Recalibrar e Marcar como alcançado), quests, grupo ou inventário, rodapé de recursos. |
 | **Recursos: Mochila, Mana e Vigor** | Viram um módulo só, aprimorado (seção abaixo). |
-| **Guarda dos protegidos** | Dois modos: o diálogo do Claude com a linha de arquivos (o Guardião do Cofre na pele Épico) e só o diálogo nativo. |
+| **Guarda dos protegidos** | Dois modos: **Perguntar** (um dragão vermelho barra o arquivo crítico e mostra a mudança acima do diálogo do Claude) e **Só avisar** (uma nota no diálogo nativo). A lista de protegidos é curta de propósito. |
 | **Selo no diário** | O mascote e o chip de resultado em cada linha de ferramenta durante o turno. |
 | **Campanha** | Por dentro: guarda o objetivo e os capítulos que alimentam a barra, a faixa e o recibo. |
 | **Peles Épico e Sóbrio, português e inglês** | Como estão. |

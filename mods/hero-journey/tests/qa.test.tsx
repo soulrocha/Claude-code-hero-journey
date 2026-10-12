@@ -2,7 +2,9 @@
 
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+import type { Cls } from '../types'
 import { crabAt } from '../hooks/core/art'
+import { PLACE_OF, stageArt } from '../hooks/core/cenarios'
 import { agentClass } from '../hooks/core/classes'
 import { DICT } from '../hooks/core/i18n'
 import { detect, mentionsPrivate } from '../hooks/modules/grimorio/grimorio'
@@ -96,6 +98,7 @@ test('QA 4: o Haiku não roda sozinho; só no clique do botão', { options: { la
   on('session.usage', usage)
   on('turn.complete', () => ({ text: '' }) as never)
   on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Box', props: {}, children: [] }) as never)
+  on('ui.open', () => ({ value: { isPlaced: true } }) as never)
   let calls = 0
   on('model.complete', () => {
     calls += 1
@@ -104,15 +107,16 @@ test('QA 4: o Haiku não roda sozinho; só no clique do botão', { options: { la
 
   const p = await $.ui.mount(pane)
   await p.press({ key: 'config' })
+  await p.press({ key: 'mem-open' })
   await p.press({ key: 'haiku' })
   await p.unmount()
 
   await $.turn.complete({ turnId: 't1', reason: 'answer', durationMs: 1, isAborted: false, answer: 'Decidimos que listas grandes paginam sempre no servidor.' } as never)
-  // As inscrições ficam guardadas em silêncio; o /grimorio chama o Mago acima do prompt.
+  // As inscrições ficam guardadas em silêncio; o /grimorio abre a página do grimório.
   await $.command.run({ command: 'grimorio', args: '', origin: { kind: 'user' } } as never)
   expect(calls).toBe(0)
 
-  const card = await $.ui.mount(band)
+  const card = await $.ui.mount(pane)
   await card.press({ key: 'grim-haiku' })
   expect(calls).toBe(1)
   await card.unmount()
@@ -166,7 +170,7 @@ test('QA 11: o recibo do turno funciona com a campanha desligada', { options: { 
   await $.tool.call({ tool: 'Edit', tool_use_id: 'e1', file_path: '/repo/a.ts', old_string: 'a', new_string: 'b' } as never)
   const done = (await $.turn.complete(complete('t1', 'Feito'))) as { text: string }
   expect(done.text).toContain('Missão cumprida: Feito')
-  expect(done.text).toContain('Artífice · 1 ação · +1 −1')
+  expect(done.text).toContain('Rúnico · 1 ação · +1 −1')
 
   // Num `claude -p` nada desenha: o texto do turno continua sendo a resposta.
   surfaces = []
@@ -187,8 +191,8 @@ describe('QA: regras puras', () => {
     expect(mentionsPrivate('Listas grandes paginam no servidor.', paths)).toBe(false)
   })
 
-  test('10: regra da pessoa é decisão; "decisão" solta na resposta do Claude não é', async () => {
-    expect(detect('', 'Regra: nada de any no core.', 't')[0]?.kind).toBe('decisao')
+  test('10: regra da pessoa vira regra; "decisão" solta na resposta do Claude não é', async () => {
+    expect(detect('', 'Regra: nada de any no core.', 't')[0]?.kind).toBe('regra')
     expect(detect('Decision: use pnpm in every package.', '', 't')).toEqual([])
   })
 
@@ -205,7 +209,7 @@ describe('QA: regras puras', () => {
     expect(detect('**Resultado:** o build caiu de 40s para 12s.', '', 't')[0]?.kind).toBe('conquista')
   })
 
-  test('12: CRLF não chega ao diff do chefe', async () => {
+  test('12: CRLF não chega ao diff da guarda', async () => {
     expect(diffOf('/r/.env', { old_string: 'A=1\r\nB=2', new_string: 'A=3\r\n' }).diff).not.toContain('\r')
   })
 
@@ -282,12 +286,17 @@ describe('Auditoria de falsos positivos (2026-10-09)', () => {
     expect(mentionsPrivate('Veja https://exemplo.com/docs para detalhes.', paths)).toBe(false)
   })
 
-  test('as estrelas do druida ficam dentro do quadro do Clawd sem acessório', async () => {
-    const source = crabAt('druida', 'escuro', 0, 0, 40, false)
-    const [x0, , w] = (/viewBox="([^"]+)"/.exec(source)?.[1] ?? '').split(' ').map(Number)
-    const xs = [...source.matchAll(/<text class="glow"[^>]*? x="([\d.]+)"/g)].map(m => Number(m[1]))
-    expect(xs.length).toBe(2)
-    for (const x of xs) expect(x >= (x0 ?? 0) && x <= (x0 ?? 0) + (w ?? 0) - 6).toBe(true)
+  test('cada uma das 19 classes tem pose de trabalho e de falha, e o seu cenário traduzido', async () => {
+    const all = Object.keys(DICT.pt.className) as Cls[]
+    expect(all.length).toBe(19)
+    for (const cls of all) {
+      expect(crabAt(cls, 0, 0, 36, 'work')).not.toBe(crabAt(cls, 0, 0, 36, 'fail'))
+      const place = PLACE_OF[cls]
+      const stage = stageArt(cls, 'work', place, 350, 170, cls, DICT.en.placeName).source
+      expect(stage).toContain(`◆ ${DICT.en.placeName[place].toUpperCase()}`)
+    }
+    // O acampamento: acordado e dormindo são desenhos diferentes.
+    expect(stageArt('aprendiz', 'idle', 'acampamento', 350, 320, 'x').source).not.toBe(stageArt('aprendiz', 'sleep', 'acampamento', 350, 320, 'x').source)
   })
 
   test('/hero abre nos Primeiros passos até eles serem concluídos', { options: { language: 'pt-BR' } }, async ($, on) => {
@@ -323,7 +332,8 @@ test('/clear, /resume e /branch recarregam as preferências guardadas (o session
   const ui = await $.ui.mount(pane)
   await ui.press({ key: 'config' })
   expect((await ui.find({ key: 'skin-sobrio' }))?.text).toContain('◉')
-  expect((await ui.find({ key: 'guard-chefe' }))?.text).toContain('◉')
+  // O modo chefe saiu na 0.6: quem o tinha guardado volta como Perguntar.
+  expect((await ui.find({ key: 'guard-dialogo' }))?.text).toContain('◉')
   await ui.unmount()
 })
 
