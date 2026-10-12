@@ -14,6 +14,7 @@ import { esc } from '../mods/hero-journey/hooks/core/doc'
 import { DICT } from '../mods/hero-journey/hooks/core/i18n'
 import type { Pose } from '../mods/hero-journey/hooks/core/sprites'
 import type { Cls } from '../mods/hero-journey/types'
+import { calm, scopeIds } from './svg-util'
 
 const W = 1200
 const H = 680
@@ -49,16 +50,29 @@ const T = SCENES.length * STEP
 
 // ---------- montagem ----------
 
+/** As animações da arte rodam mais devagar que na HUD; a troca de cenas tem o próprio ritmo. */
+const SLOW = 1.6
 const styles = new Set<string>()
-/** Põe uma arte do mod dentro da demo, na posição e no tamanho pedidos; o <style> dela vai para um só. */
+let pieces = 0
+/**
+ * Põe uma arte do mod dentro da demo, na posição e no tamanho pedidos: o <style>
+ * dela vai para um só, os IDs dela (o céu e o brilho de cada cenário) ganham um
+ * prefixo próprio, e o SMIL dela fica no ritmo mais calmo do README.
+ */
 const place = (a: Art, x: number, y: number, w = a.width, h = a.height) =>
-  a.source
-    .replace(/<style>([\s\S]*?)<\/style>/g, (_, rule: string) => {
-      styles.add(rule)
-      return ''
-    })
-    .replace(/<title>[\s\S]*?<\/title>/, '')
-    .replace(/^<svg ([^>]*)>/, (_, attrs: string) => `<svg ${attrs.replace(/\swidth="[^"]*"|\sheight="[^"]*"|xmlns="[^"]*"/g, '')} x="${x}" y="${y}" width="${w}" height="${h}">`)
+  calm(
+    scopeIds(
+      a.source
+        .replace(/<style>([\s\S]*?)<\/style>/g, (_, rule: string) => {
+          styles.add(rule)
+          return ''
+        })
+        .replace(/<title>[\s\S]*?<\/title>/, '')
+        .replace(/^<svg ([^>]*)>/, (_, attrs: string) => `<svg ${attrs.replace(/\swidth="[^"]*"|\sheight="[^"]*"|xmlns="[^"]*"/g, '')} x="${x}" y="${y}" width="${w}" height="${h}">`),
+      `p${pieces++}-`,
+    ),
+    SLOW,
+  )
 
 /** Mostra um grupo da cena `from` até a `to` (exclusive), com um fade curto. */
 const keyframes: string[] = []
@@ -76,7 +90,9 @@ const during = (from: number, to: number, inner: string, slide = false) => {
       ? `0%,${(b - fade).toFixed(2)}%{${shown}}${b.toFixed(2)}%,100%{${hidden}}`
       : `0%,${a.toFixed(2)}%{${hidden}}${(a + fade).toFixed(2)}%,${b >= 100 ? '98.5' : (b - fade).toFixed(2)}%{${shown}}${b >= 100 ? '100' : b.toFixed(2)}%${b >= 100 ? '' : ',100%'}{${hidden}}`
   keyframes.push(`@keyframes ${id}{${frames}}.${id}{animation:${id} ${T}s linear infinite}`)
-  return `<g class="${id}">${inner}</g>`
+  // Com "reduzir movimento", sem animação: fica parada a cena final, inteira e coerente.
+  const end = from <= SCENES.length - 1 && to >= SCENES.length
+  return `<g class="${id} dm${end ? ' dm-end' : ''}">${inner}</g>`
 }
 
 /** O nome da classe em negrito, na cor dela, e o texto logo depois. */
@@ -183,12 +199,11 @@ pane += during(7, 8, text(PX + 92, 654, '· 1', { size: 13, color: k.gild }))
 
 // ---------- documento ----------
 
-const calm = (css: string) => css.replace(/animation(-delay)?:([^;}"]*)/g, (_, delay: string | undefined, decl: string) => `animation${delay ?? ''}:${decl.replace(/(\d*\.?\d+)s\b/g, (__, n: string) => (Number(n) >= T ? `${n}s` : `${(Number(n) * 1.6).toFixed(2)}s`))}`)
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
 <title>Hero Journey: uma sessão do Claude Code com a HUD (demonstração com dados de exemplo)</title>
-<style>${calm([...styles].join(''))}
+<style>${calm([...styles].join(''), SLOW)}
 ${keyframes.join('')}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}</style>
+@media (prefers-reduced-motion:reduce){*{animation:none!important}.dm{opacity:0}.dm-end{opacity:1}}</style>
 <rect width="${W}" height="${H}" rx="16" fill="#1f1e1c"/>
 ${chat}
 ${pane}

@@ -11,6 +11,7 @@ import { esc } from '../mods/hero-journey/hooks/core/doc'
 import { stageArt } from '../mods/hero-journey/hooks/core/cenarios'
 import { spriteArt, spriteInner, SPRITE_H, SPRITE_W } from '../mods/hero-journey/hooks/core/sprites'
 import { DICT } from '../mods/hero-journey/hooks/core/i18n'
+import { calm as calmBy, scopeIds } from './svg-util'
 import type { Cls, Palette } from '../mods/hero-journey/types'
 
 const OUT = join(process.cwd(), 'docs', 'assets')
@@ -24,13 +25,9 @@ const THEME = {
   claro: { panel: '#f3f1ea', line: '#dcd8cc', text: '#1f1e1d', muted: '#57554f', gild: '#7a5310', gildDim: '#c9b48a' },
 } as const
 
-/**
- * O README é a vitrine de quem acabou de chegar: as animações rodam mais devagar que
- * na HUD, para ficar confortável de olhar (vale para as durações e os atrasos).
- */
+/** O README é a vitrine de quem acabou de chegar: as animações rodam mais devagar que na HUD (CSS e SMIL). */
 const SLOW = 1.8
-const calm = (svg: string) =>
-  svg.replace(/animation(-delay)?:([^;}"]*)/g, (_, delay: string | undefined, decl: string) => `animation${delay ?? ''}:${decl.replace(/(\d*\.?\d+)s\b/g, (__, n: string) => `${(Number(n) * SLOW).toFixed(2)}s`)}`)
+const calm = (svg: string) => calmBy(svg, SLOW)
 
 // ---------- O Clawd de cada classe e o acampamento ----------
 
@@ -73,7 +70,7 @@ const banner = (palette: Palette) => {
     const y = row === 0 ? 190 : 276
     // Cada um balança devagar, com um atraso diferente, como um grupo em marcha. O nome
     // "banner-bob" não pode ser "hop": os sprites têm um "hop" próprio, que faz o Clawd surgir e sumir.
-    return `<g style="animation:banner-bob 4.2s ease-in-out ${(i * 0.22).toFixed(2)}s infinite"><svg x="${x.toFixed(1)}" y="${y}" width="${size}" height="${h.toFixed(1)}" viewBox="0 0 ${SPRITE_W} ${SPRITE_H}" overflow="visible">${lean(spriteInner(cls, 'work'))}</svg></g>`
+    return `<g style="animation:banner-bob 4.2s ease-in-out ${(i * 0.22).toFixed(2)}s infinite"><svg x="${x.toFixed(1)}" y="${y}" width="${size}" height="${h.toFixed(1)}" viewBox="0 0 ${SPRITE_W} ${SPRITE_H}" overflow="visible">${calm(scopeIds(lean(spriteInner(cls, 'work')), `c${i}-`))}</svg></g>`
   }).join('')
   const sparkles = [
     [120, 40, 0],
