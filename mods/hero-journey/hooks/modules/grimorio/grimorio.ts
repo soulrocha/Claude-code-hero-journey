@@ -275,11 +275,26 @@ export const haikuPrompt = (i: Inscription, lang: 'pt' | 'en') =>
 export const projectName = (repo: string) => repo.split(/[\\/]/).filter(Boolean).pop() ?? 'projeto'
 
 /**
- * Onde as tarefas moram. Com vault, em `<vault>/.tarefas/<projeto>/` (o
- * repositório pode ser público). Sem vault, em `<projeto>/.hero/tarefas/`, que o
- * grimório deixa fora do git com um `.gitignore` próprio.
+ * O caminho que pode sair da máquina (no handoff do ai-memory): relativo à
+ * primeira raiz que o contém (o vault ou o repositório), sem nome de usuário nem
+ * pasta pessoal. Fora delas, só o nome do arquivo.
  */
-export const progressHome = (repo: string, vault: string) => (vault !== '' ? join(vault, '.tarefas', projectName(repo)) : join(repo, '.hero', 'tarefas'))
+export const shareablePath = (path: string, roots: readonly string[]) => {
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+  const p = norm(path)
+  for (const root of roots.map(norm).filter(r => r !== '')) {
+    if (p.toLowerCase().startsWith(`${root.toLowerCase()}/`)) return p.slice(root.length + 1)
+  }
+  return p.split('/').pop() ?? p
+}
+
+/**
+ * Onde as tarefas moram. Com vault, em `<vault>/.tarefas/<projeto>/`, com o mesmo
+ * nome de projeto do ai-memory (do marcador ou do remoto do git): dois repositórios
+ * com a mesma pasta final não se misturam. Sem vault, em `<repo>/.hero/tarefas/`,
+ * que o grimório deixa fora do git com um `.gitignore` próprio.
+ */
+export const progressHome = (repo: string, vault: string, project: string) => (vault !== '' ? join(vault, '.tarefas', project) : join(repo, '.hero', 'tarefas'))
 
 /** O prefixo do ID: as iniciais do projeto ("claude-code-hero-journey" → "CCHJ"). */
 export const taskPrefix = (name: string) => {

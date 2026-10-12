@@ -202,8 +202,8 @@ export type Progress = {
   handoffId?: string
 }
 
-/** O progresso desta sessão: o último salvamento (para o Desfazer) e o que dá para continuar. */
-export type ProgressState = { saved?: { at: number; path: string; id: string; handoffId?: string; created: boolean }; list: Progress[] }
+/** O progresso desta sessão: o último salvamento (com o texto de antes, para o Desfazer) e o que dá para continuar. */
+export type ProgressState = { saved?: { at: number; path: string; id: string; handoffId?: string; created: boolean; before?: string }; list: Progress[] }
 
 declare module 'claude-code' {
   interface PluginState {

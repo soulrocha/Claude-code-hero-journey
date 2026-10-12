@@ -11,7 +11,7 @@
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
-[![Tests](https://img.shields.io/badge/tests-113%20passing-8fc46a)](#%EF%B8%8F-development)
+[![Tests](https://img.shields.io/badge/tests-115%20passing-8fc46a)](#%EF%B8%8F-development)
 [![License](https://img.shields.io/badge/license-MIT-d9b26a)](LICENSE)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20desktop%20app-e6b450)](#%EF%B8%8F-status-and-roadmap)
 
@@ -312,7 +312,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 bun run scripts/gerar-assets.ts
 ```
 
-There are 113 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The 0.5 animated demo was recorded from the reference prototype, which is not part of this repository; the gallery screens are drawn by the mod itself.
+There are 115 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The 0.5 animated demo was recorded from the reference prototype, which is not part of this repository; the gallery screens are drawn by the mod itself.
 
 Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Follow the [security policy](SECURITY.md). Each release's changes are in the [CHANGELOG](CHANGELOG.md).
 

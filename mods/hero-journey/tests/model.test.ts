@@ -8,7 +8,7 @@ import { buildReport, briefingOf, newCampaign, onPrompt } from '../hooks/modules
 import { alertOf, bagOf, countdown, readingOf, warningsOf, windowOf } from '../hooks/modules/mochila/recursos'
 import { leadOf, receiptOf } from '../hooks/modules/recibo/recibo'
 import { layoutOf, NAP_MS, sceneOf, STAGE_MAX, STAGE_MIN, stepWindow } from '../hooks/modules/painel/palco'
-import { appendDecision, continuePrompt, cycleDest, detect, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, suggest, taskPrefix, taskText, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
+import { appendDecision, continuePrompt, cycleDest, detect, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
 
 describe('marco e página do ai-memory', () => {
   test('marco é entrega de verdade: commit, push e PR; mandar arquivo ou e-mail não', () => {
@@ -30,6 +30,12 @@ describe('marco e página do ai-memory', () => {
 })
 
 describe('escopo do ai-memory', () => {
+  test('o caminho da tarefa no handoff é relativo: nada de usuário nem pasta pessoal', () => {
+    expect(shareablePath('C:\\Users\\eu\\Vault\\.tarefas\\acme-api\\AA-001.md', ['C:\\Users\\eu\\Vault', 'C:\\work\\api'])).toBe('.tarefas/acme-api/AA-001.md')
+    expect(shareablePath('/home/eu/work/api/.hero/tarefas/AA-001.md', ['', '/home/eu/work/api'])).toBe('.hero/tarefas/AA-001.md')
+    expect(shareablePath('/outro/lugar/AA-001.md', ['/vault'])).toBe('AA-001.md')
+  })
+
   test('o marcador: só as chaves de cima, antes da primeira seção', () => {
     expect(parseMarker('workspace = "movvia"\nproject = "pe-portais"\n')).toEqual({ workspace: 'movvia', project: 'pe-portais' })
     expect(parseMarker('workspace = \'pessoal\'\n\n[profile]\nproject = "nao-vale"\n')).toEqual({ workspace: 'pessoal' })
@@ -417,8 +423,10 @@ describe('grimório', () => {
 
 describe('salvar progresso', () => {
   test('a tarefa mora no vault (repositório público) ou no projeto, com ID pelas iniciais', async () => {
-    expect(progressHome('C:/Projetos/claude-code-hero-journey', 'C:/Vault')).toBe('C:/Vault/.tarefas/claude-code-hero-journey')
-    expect(progressHome('/repo/loja', '')).toBe('/repo/loja/.hero/tarefas')
+    // No vault, o nome do projeto é o do ai-memory: /work/acme/api e /work/outra/api não se misturam.
+    expect(progressHome('C:/Projetos/claude-code-hero-journey', 'C:/Vault', 'soulrocha-claude-code-hero-journey')).toBe('C:/Vault/.tarefas/soulrocha-claude-code-hero-journey')
+    expect(progressHome('/work/acme/api', '/vault', 'acme-api')).not.toBe(progressHome('/work/outra/api', '/vault', 'outra-api'))
+    expect(progressHome('/repo/loja', '', 'loja')).toBe('/repo/loja/.hero/tarefas')
     expect(taskPrefix('claude-code-hero-journey')).toBe('CCHJ')
     expect(nextTaskId(['CCHJ-001.md', 'CCHJ-007.md', '_modelo.md'], 'CCHJ')).toBe('CCHJ-008')
     expect(nextTaskId([], 'LOJA')).toBe('LOJA-001')
