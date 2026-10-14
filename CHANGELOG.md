@@ -2,7 +2,7 @@
 
 As mudanças de cada versão. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
-## [0.6.0] - 2026-10-11 (ainda não publicada)
+## [0.6.0] - 2026-10-11
 
 O Clawd ganhou 19 classes, o painel virou um palco e o grimório passou a salvar o progresso para continuar depois, em qualquer agente. O mapa das classes está em [docs/classes.md](docs/classes.md).
 
