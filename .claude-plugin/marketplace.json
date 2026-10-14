@@ -1,6 +1,6 @@
 {
   "name": "claude-code-hero-journey",
-  "description": "Mods do Claude Code Hero Journey: a HUD de RPG com os caranguejos Clawd / Claude Code Hero Journey mods: the Clawd RPG HUD",
+  "description": "Claude Code Hero Journey: a cozy RPG HUD mod for Claude Code with multiclass Clawd crabs, a quest log, a protected-file guard and a grimoire (English and pt-BR)",
   "owner": {
     "name": "Saulo Rocha"
   },
@@ -8,7 +8,7 @@
     {
       "name": "hero-journey",
       "source": "./mods/hero-journey",
-      "description": "HUD de RPG aconchegante para o Claude Code, com os caranguejos Clawd multiclasse (pt-BR e English)"
+      "description": "A cozy RPG HUD for Claude Code: 19 Clawd crab classes, a quest log, a protected-file guard and a grimoire that saves your progress (English and pt-BR)"
     }
   ]
 }
