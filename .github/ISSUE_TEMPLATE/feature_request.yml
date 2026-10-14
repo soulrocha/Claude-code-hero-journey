@@ -1,0 +1,14 @@
+name: Idea / Ideia
+description: A class, scene, module or improvement / Uma classe, cenário, módulo ou melhoria
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like? / O que você gostaria?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it help during a session? / Por que ajuda durante a sessão?

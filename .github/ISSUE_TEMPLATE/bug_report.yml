@@ -1,0 +1,35 @@
+name: Bug report / Relato de bug
+description: Something in the HUD broke or looks wrong / Algo na HUD quebrou ou está estranho
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Portuguese are both fine. **Do not paste tokens, credentials or private paths.**
+        Pode escrever em português ou inglês. **Não cole tokens, credenciais nem caminhos privados.**
+  - type: input
+    id: version
+    attributes:
+      label: Hero Journey version / versão
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version and surface / versão e superfície
+      placeholder: "2.1.295, desktop app (Windows)"
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module / Módulo
+      options: [Logbook / Diário, Band / Faixa, Pane / Painel, Campaign / Campanha, Receipt / Recibo, Guard / Guarda, Resources / Recursos, Grimoire / Grimório, Install / Instalação, Other / Outro]
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect? / O que aconteceu e o que você esperava?
+      description: A screenshot helps a lot. / Um print ajuda muito.
+    validations:
+      required: true

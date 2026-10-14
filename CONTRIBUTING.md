@@ -17,7 +17,7 @@ Obrigado por querer ajudar. O projeto está em **beta**, feito primeiro para o a
 powershell -ExecutionPolicy Bypass -File scripts\verificar.ps1   # Windows
 ```
 
-O script roda o validador (`claude plugin validate`) e os testes no motor do próprio Claude Code (`claude plugin test`), sem gastar tokens. Para carregar o mod direto da pasta enquanto você mexe, veja "Rodar direto da pasta" no [README](README.md#-instalação).
+O script roda o validador (`claude plugin validate`) e os testes no motor do próprio Claude Code (`claude plugin test`), sem gastar tokens. Para carregar o mod direto da pasta enquanto você mexe, veja "Rodar direto da pasta" no [README](README.pt-BR.md#-instalação).
 
 ## Como o código é organizado
 
