@@ -580,9 +580,10 @@ describe('diff do inventário (D2)', () => {
     expect(d.removed).toBe(2)
     expect(d.more).toBe(0)
     expect(d.lines.map(l => l.kind)).toEqual(['hunk', 'ctx', 'del', 'add', 'hunk', 'del', 'add', 'add'])
-    expect(diffArgv('src/app.ts')).toEqual(['git', 'diff', 'HEAD', '--', 'src/app.ts'])
+    expect(diffArgv('src/app.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/app.ts'])
     expect(diffArgv('src/app:name.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/app:name.ts'])
     expect(diffArgv('src/*.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/*.ts'])
+    expect(diffArgv('a[1].ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'a[1].ts'])
   })
 
   test('linha de contexto vazia dentro de um hunk vira ctx, não meta', async () => {
