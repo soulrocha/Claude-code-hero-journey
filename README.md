@@ -11,9 +11,9 @@
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
-[![Tests](https://img.shields.io/badge/tests-142%20passing-8fc46a)](#%EF%B8%8F-development)
+[![Tests](https://img.shields.io/badge/tests-145%20passing-8fc46a)](#%EF%B8%8F-development)
 [![License](https://img.shields.io/badge/license-MIT-d9b26a)](LICENSE)
-[![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20desktop%20app-e6b450)](#%EF%B8%8F-status-and-roadmap)
+[![Status](https://img.shields.io/badge/status-1.0%20stable-8fc46a)](#%EF%B8%8F-status-and-roadmap)
 
 **English** · [Português](README.pt-BR.md)
 
@@ -22,7 +22,7 @@
 </div>
 
 > [!WARNING]
-> **Beta.** The HUD works in the **desktop app** and in the **Claude Code CLI** (terminal), each with the drawing its medium allows. Expect rough edges, and [open an issue](https://github.com/soulrocha/Claude-code-hero-journey/issues) when you hit one.
+> **1.0, stable.** The HUD works in the **desktop app** and in the **Claude Code CLI** (terminal), each with the drawing its medium allows. Found something off? [Open an issue](https://github.com/soulrocha/Claude-code-hero-journey/issues) when you hit one.
 
 ---
 
@@ -147,7 +147,7 @@ When Claude stops, the Apprentice goes back to **camp**:
   </tr>
 </table>
 
-In the inventory, each file gets a rarity by its impact:
+In the inventory, each file gets a rarity by its impact, and clicking it opens its diff:
 
 | Rarity | File |
 |---|---|
@@ -334,14 +334,14 @@ bun run scripts/gerar-assets.ts
 bun run scripts/gerar-demo.ts
 ```
 
-There are 142 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The demo and the gallery screens are drawn from the mod's own art.
+There are 145 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The demo and the gallery screens are drawn from the mod's own art.
 
 Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Follow the [security policy](SECURITY.md). Each release's changes are in the [CHANGELOG](CHANGELOG.md).
 
 ## 🗺️ Status and roadmap
 
 > [!IMPORTANT]
-> **Beta, desktop app first.** Everything passes the validator and the engine tests, but the full manual test in the desktop app is still in progress. The spike (`mods/clawd-hud-spike`) is there to confirm in the real app what tests cannot reach, such as SVG animation and the pinned footer. The CLI (terminal) is supported since 0.7.
+> **1.0, stable.** Everything passes the validator and the engine tests, and the HUD was tested by hand in the desktop app. The spike (`mods/clawd-hud-spike`) stays as the place to confirm in the real app what tests cannot reach, such as SVG animation and the pinned footer.
 
 - [x] Design: prototypes v1–v6 and final, reviewed by UX and adversarial QA
 - [x] Phase 0: spike probing the 12 items to validate
@@ -361,10 +361,11 @@ Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Foll
 - [x] 0.6: new grimoire: save progress and continue, chronicle, rules in AGENTS.md, ⚙ Memory and the recommended setup detected on its own
 - [x] 0.6: screens reviewed: First steps with no folder questions, ⚙ in General and Features, About with the 19 classes, the guard with the red dragon and a short protected list, logbook without the app rail, light theme checked
 - [x] 0.6: in-app test, quality review, new demo and the 0.6.0 release
-- [ ] Full manual test in the desktop app, and adjustments from it
-- [ ] First stable release
-- [ ] Diffs in the inventory
 - [x] 0.7: the HUD in the Claude Code CLI (terminal): the 19 Clawds as purpose-made pixel art, the animated stage in the pane, each class icon in the band, logbook, spinner and receipt
+- [x] 0.7: a steadier grimoire (no stuck Seal, no duplicate notes) and clearer compaction
+- [x] 1.0: manual test in the desktop app, with the fixes from it
+- [x] 1.0: diffs in the inventory
+- [x] 1.0: first stable release
 
 ## 🙏 Credits and references
 

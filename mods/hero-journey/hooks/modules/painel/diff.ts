@@ -5,8 +5,13 @@ export const DIFF_MAX_SHOWN = 40
 export const DIFF_MAX_READ = 200
 
 /** Comando git por argv, sem shell, para ler o diff de um item do inventário. */
-export const diffArgv = (path: string) =>
-  ['git', '--literal-pathspecs', 'diff', 'HEAD', '--', path] as const
+export const diffArgv = (path: string, root?: string) =>
+  root === undefined
+    ? (['git', '--literal-pathspecs', 'diff', 'HEAD', '--', path] as const)
+    : (['git', '-C', root, '--literal-pathspecs', 'diff', 'HEAD', '--', path] as const)
+
+/** Acima disso, o arquivo novo não é lido para o diff (o painel não precisa do arquivo inteiro). */
+export const DIFF_MAX_BYTES = 256 * 1024
 
 export type DiffKind = 'add' | 'del' | 'hunk' | 'ctx' | 'meta'
 
@@ -28,6 +33,8 @@ export type ParsedDiff = {
   more: number
   /** Indica se os totais são aproximados (ex.: quando a entrada já veio truncada pelo chamador). */
   approximate?: boolean
+  /** Indica que o item é um diretório não rastreado (sem conteúdo de arquivo). */
+  directory?: boolean
 }
 
 /** Decodifica caminhos que o Git coloca entre aspas com escapes octais UTF-8 (`\303\247`). */

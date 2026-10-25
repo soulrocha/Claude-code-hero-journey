@@ -2,7 +2,7 @@
 
 **Português** · [English](#english)
 
-Obrigado por querer ajudar. O projeto está em **beta**, feito primeiro para o app desktop do Claude Code. O suporte ao CLI (terminal) vem depois.
+Obrigado por querer ajudar. O projeto está na **1.0**, estável no app desktop do Claude Code e no CLI (terminal).
 
 ## Antes de começar
 
@@ -41,7 +41,7 @@ Ao contribuir, você concorda que o seu código entra sob a [licença MIT](LICEN
 
 ## English
 
-Thanks for helping. The project is in **beta** and targets the Claude Code desktop app first; CLI (terminal) support comes later.
+Thanks for helping. The project is at **1.0**, stable in the Claude Code desktop app and in the CLI (terminal).
 
 - **Bugs:** open an issue with what you did, what you expected, what happened, your Claude Code version (`claude --version`) and, for screen issues, a screenshot.
 - **Big ideas or changes:** open an issue before writing code so we can agree on the design.

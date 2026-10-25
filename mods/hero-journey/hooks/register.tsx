@@ -14,7 +14,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
 
-import type { Campaign, Card, Cls, DiaryEntry, GuardFile, Inscription, Lang, Member, ModuleId, Palette, Prefs, Progress, Written } from '../types'
+import type { Campaign, Card, Cls, DiaryEntry, GuardFile, Inscription, Item, Lang, Member, ModuleId, Palette, Prefs, Progress, Written } from '../types'
 import { agentClass, baseName, classOf, delivers, patchStats, summaryOf } from './core/classes'
 import { classColor, TONE } from './core/art'
 import { DICT, looksPortuguese, resolveLang } from './core/i18n'
@@ -36,6 +36,9 @@ import { compactCard } from './modules/mochila/view'
 import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, STATUS_ARGV, upsertMember } from './modules/painel/painel'
 import { setupView } from './modules/painel/primeiros-passos'
 import { aboutView, configView, footer, mainView, memoryView, stageLook } from './modules/painel/view'
+import { DIFF_MAX_BYTES, DIFF_MAX_READ, DIFF_MAX_SHOWN, diffArgv, parseDiff, untrackedDiff } from './modules/painel/diff'
+import type { ParsedDiff } from './modules/painel/diff'
+import { diffView } from './modules/painel/diff-view'
 import { rasterOfPixels } from './core/raster'
 import { TH, TW, tsprite } from './core/tsprites'
 import { layoutOf, NAP_MS, sceneOf } from './modules/painel/palco'
@@ -129,6 +132,9 @@ let planCelebrated = ''
 // O texto da tarefa antes do último salvar, para o Desfazer voltar a ele.
 // Quantas notas a memória automática do Claude tem neste projeto (sem ai-memory), e onde.
 let autoNotes: { n: number; dir: string } | undefined
+// O item do inventário e o diff lido para a página de diff do painel.
+let diffPath: string | undefined
+let diffCached: { path: string; diff: ParsedDiff | string } | undefined
 
 // ---------- Ajudantes (usam `$`: o validador quer funções no topo do arquivo) ----------
 
@@ -175,9 +181,65 @@ async function refreshInventory($: EngineInterface) {
     const log = await $.process.run([...LOG_ARGV], { timeoutMs: 5000 }).catch(() => undefined)
     const inv = parseInventory(status.stdout, numstat.exitCode === 0 ? numstat.stdout : '', isGuarded)
     await update($, inventory, () => ({ ...inv, recent: log?.exitCode === 0 ? parseLog(log.stdout) : [] }))
+    // O diff aberto fica velho quando o inventário muda: relê no próximo desenho, ou volta se o item saiu.
+    diffCached = undefined
+    if (diffPath !== undefined && !inv.items.some(i => i.path === diffPath) && (await read($, view)) === 'diff') {
+      await update($, view, () => 'main' as const)
+    }
   } catch {
     await update($, inventory, () => EMPTY_INVENTORY)
   }
+}
+
+async function loadDiff($: EngineInterface, item: Item): Promise<ParsedDiff | string> {
+  const t = DICT[await langNow($)]
+  // O git status dá o caminho a partir da raiz do repositório, não da pasta da sessão.
+  const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 }).catch(() => undefined)
+  const root = top?.exitCode === 0 && top.stdout.trim() !== '' ? top.stdout.trim() : undefined
+  const full = root === undefined ? item.path : joinPath(root, item.path)
+  if (item.code === '??') {
+    const stat = await $.fs.stat(full).catch(() => undefined)
+    const isDir = item.path.endsWith('/') || item.path.endsWith('\\') || stat?.kind === 'dir'
+    if (isDir) {
+      return {
+        lines: [],
+        added: 0,
+        removed: 0,
+        binary: false,
+        isNew: false,
+        isDeleted: false,
+        more: 0,
+        directory: true,
+      }
+    }
+    const size = (stat as { size?: number } | undefined)?.size
+    if (size !== undefined && size > DIFF_MAX_BYTES) return t.diffTooBig(Math.round(size / 1024))
+    try {
+      const content = await $.fs.read(full)
+      return untrackedDiff(content, DIFF_MAX_SHOWN, DIFF_MAX_READ)
+    } catch (err) {
+      return t.diffReadError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  try {
+    const res = await $.process.run([...diffArgv(item.path, root)], { timeoutMs: 5000 })
+    if (res.exitCode !== 0) {
+      return t.diffReadError(res.stderr.trim() || `exit ${res.exitCode}`)
+    }
+    return parseDiff(res.stdout, DIFF_MAX_SHOWN, DIFF_MAX_READ)
+  } catch (err) {
+    return t.diffReadError(err instanceof Error ? err.message : String(err))
+  }
+}
+
+async function openDiff($: EngineInterface, path: string) {
+  diffPath = path
+  const inv = await read($, inventory)
+  const item = inv.items.find(i => i.path === path) ?? { path, rarity: 'comum' as const, code: ' M' }
+  const diff = await loadDiff($, item)
+  diffCached = { path, diff }
+  await update($, view, () => 'diff' as const)
 }
 
 /** Lê o $.store na hora de gravar: outra sessão aberta pode ter mudado as preferências. */
@@ -1182,6 +1244,17 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
     )
   }
 
+  if (v === 'diff') {
+    const inv = await read($, inventory)
+    const item = (diffPath ? inv.items.find(i => i.path === diffPath) : undefined) ?? {
+      path: diffPath ?? '',
+      rarity: 'comum' as const,
+      code: ' M',
+    }
+    const diff = diffCached && diffCached.path === item.path ? diffCached.diff : await loadDiff($, item)
+    return diffView(c, item, diff, toMain)
+  }
+
   // O relógio de 1 minuto sobe o `tick`: ler aqui inscreve o painel; a contagem do reset anda e o acampamento adormece.
   await read($, tick)
   const data = {
@@ -1226,6 +1299,7 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
       continueHow: async () => {
         await fillOrCopy($, AI_MEMORY_URL)
       },
+      openDiff: path => openDiff($, path),
     },
   )
 }
@@ -1713,7 +1787,7 @@ export const register: Register = (on, options) => {
     // O motor não tem rolagem dentro do painel: o meio corta heróis e itens para
     // caber, e o rodapé (recursos, Grimório num canto e ⚙ no outro) fica sempre preso no fim.
     // No grimório e no ⚙ também; o Sobre e os Primeiros passos rolam inteiros.
-    const page = v === 'config' || v === 'memoria' || (v === 'grimorio' && isOn(p, 'grimorio'))
+    const page = v === 'config' || v === 'memoria' || v === 'diff' || (v === 'grimorio' && isOn(p, 'grimorio'))
     if (page) {
       const c: Ctx = { ...(await ctxOf($, e.surface, e.props.bodyColumns, e.props.placement === 'inline')), ui: $.ui.resolve(e) }
       return (
