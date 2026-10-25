@@ -11,7 +11,7 @@
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
-[![Tests](https://img.shields.io/badge/tests-115%20passing-8fc46a)](#%EF%B8%8F-development)
+[![Tests](https://img.shields.io/badge/tests-142%20passing-8fc46a)](#%EF%B8%8F-development)
 [![License](https://img.shields.io/badge/license-MIT-d9b26a)](LICENSE)
 [![Status](https://img.shields.io/badge/status-beta%20%C2%B7%20desktop%20app-e6b450)](#%EF%B8%8F-status-and-roadmap)
 
@@ -22,7 +22,7 @@
 </div>
 
 > [!WARNING]
-> **Beta.** The HUD was built for the Claude Code **desktop app** first. **Claude Code CLI** (terminal) support is still pending and comes after the desktop version. Expect rough edges, and [open an issue](https://github.com/soulrocha/Claude-code-hero-journey/issues) when you hit one.
+> **Beta.** The HUD works in the **desktop app** and in the **Claude Code CLI** (terminal), each with the drawing its medium allows. Expect rough edges, and [open an issue](https://github.com/soulrocha/Claude-code-hero-journey/issues) when you hit one.
 
 ---
 
@@ -88,6 +88,17 @@ Beyond the modules, the HUD speaks **English and Portuguese** (it follows Claude
 </table>
 
 <sub>Screens drawn by the mod itself, with sample data. The interface is shown in Portuguese.</sub>
+
+### In the terminal
+
+<img alt="The HUD in the terminal: the logbook with each tool's class icon, the turn receipt, the class spinner, the band above the prompt and the pane with the Apprentice by the campfire" src="docs/assets/telas/terminal.png">
+
+In the Claude Code CLI the HUD uses what the terminal can draw:
+
+- **The Clawds are pixel art made for the terminal,** with no background, each wearing what it wears on the desktop (hat, crown, shield, bow…). The stage shows in the pane docked beside the conversation (fullscreen, 110 columns or more), large when the pane is free and smaller with a plan, party or inventory. The camp has the campfire, and the stage is animated: the Clawd breathes and the flame flickers.
+- **Each class has an icon** (🔮 Mage, 🐺 Witcher, 🎭 Illusionist…) wherever only one line fits: the band, the logbook (to the right of each tool row), the spinner and the receipt, which takes the place of "Baked for 3s".
+- **A resource on alert** also shows at the end of the hint line under the prompt.
+- **What differs from the desktop:** without the docked pane there is no stage (the pane opens above the prompt, text only); the guard shows 🐉 instead of the dragon art, since the engine allows only 12 rows around the dialog and no pixels there; the spinner is drawn by the mod and does not show tokens; tooltips become written text.
 
 ## 🦀 The party
 
@@ -323,14 +334,14 @@ bun run scripts/gerar-assets.ts
 bun run scripts/gerar-demo.ts
 ```
 
-There are 115 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The demo and the gallery screens are drawn from the mod's own art.
+There are 142 HUD tests and 5 spike tests. They run inside Claude Code's own engine (`claude plugin test`) on the desktop and terminal surfaces, and include a regression test for every finding of the adversarial QA and of the PR review. The demo and the gallery screens are drawn from the mod's own art.
 
 Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Follow the [security policy](SECURITY.md). Each release's changes are in the [CHANGELOG](CHANGELOG.md).
 
 ## 🗺️ Status and roadmap
 
 > [!IMPORTANT]
-> **Beta, desktop app first.** Everything passes the validator and the engine tests, but the full manual test in the desktop app is still in progress. The spike (`mods/clawd-hud-spike`) is there to confirm in the real app what tests cannot reach, such as SVG animation and the pinned footer. CLI (terminal) support comes after the desktop version.
+> **Beta, desktop app first.** Everything passes the validator and the engine tests, but the full manual test in the desktop app is still in progress. The spike (`mods/clawd-hud-spike`) is there to confirm in the real app what tests cannot reach, such as SVG animation and the pinned footer. The CLI (terminal) is supported since 0.7.
 
 - [x] Design: prototypes v1–v6 and final, reviewed by UX and adversarial QA
 - [x] Phase 0: spike probing the 12 items to validate
@@ -353,7 +364,7 @@ Want to help? Read [CONTRIBUTING](CONTRIBUTING.md). Found a security issue? Foll
 - [ ] Full manual test in the desktop app, and adjustments from it
 - [ ] First stable release
 - [ ] Diffs in the inventory
-- [ ] Claude Code CLI (terminal) support, after the desktop version
+- [x] 0.7: the HUD in the Claude Code CLI (terminal): the 19 Clawds as purpose-made pixel art, the animated stage in the pane, each class icon in the band, logbook, spinner and receipt
 
 ## 🙏 Credits and references
 

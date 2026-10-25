@@ -13,7 +13,8 @@ import { campWithSageArt, stageArt } from '../../core/cenarios'
 import { clockOf, humanType, untilOf } from '../../core/classes'
 import { isOn, MODULES } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
-import { GITHUB_URL, LINKEDIN_URL, pxOf, svg, title, VERSION } from '../../core/ui'
+import { clawdArt, GITHUB_URL, LINKEDIN_URL, pxOf, svg, textBar, title, VERSION } from '../../core/ui'
+import { CLASS_ICON } from '../../core/tsprites'
 import { goalOf } from '../campanha/campanha'
 import { continueSection, memoryConfig, sageNudge } from '../grimorio/view'
 import type { MemoryConfigActions } from '../grimorio/view'
@@ -104,8 +105,33 @@ export const sceneWords = (c: Ctx, s: Scene) => {
   }
 }
 
+/** O palco do terminal: quem aparece, em que pose e tamanho; nada acima do prompt (sem tela cheia). */
+export const stageLook = (c: Pick<Ctx, 'desktop' | 'inline' | 'width'>, d: Pick<PaneData, 'scene' | 'fit'>) => {
+  if (c.desktop || c.inline === true) return undefined
+  const s = d.scene
+  const camp = s.place === 'acampamento'
+  return {
+    cls: camp ? ('aprendiz' as Cls) : s.hero,
+    pose: camp ? (s.mode === 'sleep' ? ('sleep' as const) : ('idle' as const)) : s.pose === 'fail' ? ('fail' as const) : ('work' as const),
+    camp,
+    scale: d.fit.stage <= 170 || c.width < 48 ? 1 : 2,
+  }
+}
+
 const stageSection = (c: Ctx, d: PaneData) => {
-  if (!c.desktop) return null
+  if (!c.desktop) {
+    // Terminal: só o Clawd, em pixel art própria e sem fundo; no acampamento, a fogueira ao lado.
+    // Grande (2×, 48 colunas) com o painel livre; 1× com plano, grupo ou inventário. Acima do
+    // prompt (sem tela cheia) não há palco: ele comeria a conversa. O relógio do register anima.
+    const look = stageLook(c, d)
+    if (look === undefined) return null
+    const { Box } = c.ui
+    return (
+      <Box key="stage-box" flexDirection="row" justifyContent="center">
+        {clawdArt(c, look.cls, look.pose, 'stage', look.scale, look.camp)}
+      </Box>
+    )
+  }
   const w = sceneWords(c, d.scene)
   const s = d.scene
   const alt = `${w.who} ${w.verb}`
@@ -338,24 +364,24 @@ export const footer = (c: Ctx, d: Pick<PaneData, 'resources' | 'now' | 'prefs' |
   const rows = resourceData(c, d.resources, d.now)
   const on = (id: ModuleId) => isOn(d.prefs, id)
   const alerted = (r: ResRow) => r.color === toneOf(c.palette).bad || r.color === toneOf(c.palette).warn
-  // O rótulo (11 colunas), a porcentagem (5) e a nota (9), com 3 de espaço entre eles: a barra fica com o resto.
-  const barW = Math.max(60, pxOf(c) - Math.round(28 * 7.6))
+  // O rótulo (12 colunas), a porcentagem (5) e a nota (9), com 3 de espaço entre eles: a barra fica com o resto.
+  const barW = Math.max(60, pxOf(c) - Math.round(29 * 7.6))
   return (
     <Box key="footer" flexDirection="column" marginTop={1}>
       {c.desktop ? (
         rows.map(r => (
           <Box key={`r-${r.key}`} flexDirection="row" columnGap={1} alignItems="center">
-            <Box width={11} flexShrink={0}>
+            <Box width={12} flexShrink={0} flexDirection="row" columnGap={1} alignItems="center">
+              {/* O ícone fica fora do botão: o recuo do botão nativo desalinhava a Mochila das outras. */}
+              <Text dimColor={!alerted(r)}>{RES_ICON[r.key] ?? ''}</Text>
               {r.key === 'mochila' && on('mochila') ? (
                 // A Mochila é o botão de compactar: o clique leva ao cartão (salvar o progresso e compactar).
-                <Button key="compact" plain dimColor={!alerted(r)} label={`${RES_ICON[r.key]} ${r.label}`} onPress={act.compact}>
-                  <Text color={alerted(r) ? r.color : undefined}>
-                    {RES_ICON[r.key]} {r.label}
-                  </Text>
+                <Button key="compact" plain dimColor={!alerted(r)} label={r.label} onPress={act.compact}>
+                  <Text color={alerted(r) ? r.color : undefined}>{r.label}</Text>
                 </Button>
               ) : (
                 <Text dimColor={!alerted(r)} color={alerted(r) ? r.color : undefined}>
-                  {RES_ICON[r.key] ?? ''} {r.label}
+                  {r.label}
                 </Text>
               )}
             </Box>
@@ -373,9 +399,37 @@ export const footer = (c: Ctx, d: Pick<PaneData, 'resources' | 'now' | 'prefs' |
           </Box>
         ))
       ) : (
-        <Text dimColor wrap="truncate-end">
-          {rows.map(r => `${r.label} ${r.text}${r.sub === '' ? '' : ` ${r.sub}`}`).join(' · ')}
-        </Text>
+        // Terminal: uma linha por recurso, com a barra em texto no meio; a Mochila é o botão de compactar.
+        rows.map(r => {
+          const bar = textBar(r.value ?? 0, Math.max(6, c.width - 30))
+          return (
+            <Box key={`r-${r.key}`} flexDirection="row" columnGap={1}>
+              <Box width={11} flexShrink={0}>
+                {r.key === 'mochila' && on('mochila') ? (
+                  <Button key="compact" plain dimColor={!alerted(r)} label={`${RES_ICON[r.key]} ${r.label}`} onPress={act.compact} />
+                ) : (
+                  <Text dimColor={!alerted(r)} color={alerted(r) ? r.color : undefined}>
+                    {RES_ICON[r.key] ?? ''} {r.label}
+                  </Text>
+                )}
+              </Box>
+              <Text color={r.color}>
+                {bar.full}
+                <Text dimColor>{bar.empty}</Text>
+              </Text>
+              <Box width={5} flexShrink={0} justifyContent="flex-end">
+                <Text bold color={alerted(r) ? r.color : undefined}>
+                  {r.text}
+                </Text>
+              </Box>
+              <Box width={8} flexShrink={0} justifyContent="flex-end">
+                <Text dimColor wrap="truncate-end">
+                  {r.sub}
+                </Text>
+              </Box>
+            </Box>
+          )
+        })
       )}
       <Box flexDirection="row" columnGap={2} alignItems="center" marginTop={c.desktop ? 1 : 0}>
         {on('grimorio') && (
@@ -544,9 +598,15 @@ export const aboutView = (c: Ctx, back: () => void): RenderElement => {
       {c.desktop ? (
         svg(c, parade(W, 'Hero Journey', c.palette, c.t.aboutTagline(VERSION)), 'about-parade')
       ) : (
-        <Text bold color="claude">
-          HERO JOURNEY · {c.t.version(VERSION)}
-        </Text>
+        <Box key="about-head" flexDirection="column">
+          <Box key="about-parade" flexDirection="row" justifyContent="center">
+            {clawdArt(c, 'mago', 'work', 'about-pet-a')}
+            {c.width >= 48 && clawdArt(c, 'paladino', 'work', 'about-pet-b')}
+          </Box>
+          <Text bold color="claude">
+            HERO JOURNEY · {c.t.version(VERSION)}
+          </Text>
+        </Box>
       )}
       {c.desktop
         ? svg(
@@ -564,6 +624,25 @@ export const aboutView = (c: Ctx, back: () => void): RenderElement => {
             </Text>
           ))}
       {c.desktop && svg(c, categoryHeader(W, 'grupo', c.t.classesTitle, c.palette, c.t.classesHint), 'about-classes-head')}
+      {!c.desktop && (
+        // Terminal: o elenco em lista, o nome na cor da classe e o que ela faz (sem tooltip, o papel vem escrito).
+        <Box key="about-classes" flexDirection="column">
+          <Text bold>{c.t.classesTitle}</Text>
+          {(Object.keys(c.t.className) as Cls[]).map(cls => (
+            <Box key={`cls-${cls}`} flexDirection="row" columnGap={1}>
+              <Text>{CLASS_ICON[cls]}</Text>
+              <Box width={12} flexShrink={0}>
+                <Text bold color={classColor(cls, c.palette)}>
+                  {c.t.className[cls]}
+                </Text>
+              </Box>
+              <Text dimColor wrap="truncate-end">
+                {c.t.classRole[cls]}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
       {c.desktop && classGallery(W, Object.keys(c.t.className) as Cls[], cls => c.t.className[cls], cls => c.t.classRole[cls], c.palette).map((art, i) => svg(c, art, `about-classes-${i}`))}
       {c.desktop ? svg(c, categoryHeader(W, 'projeto', c.t.aboutBy, c.palette), 'about-by') : <Text bold>{c.t.aboutBy}</Text>}
       <Box flexDirection="column" paddingLeft={c.desktop ? 3 : 0}>

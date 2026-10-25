@@ -9,6 +9,7 @@ import type { RenderElement } from 'claude-code'
 import type { DiaryEntry } from '../../../types'
 import { classColor, diaryPet, spinRing, statusColor } from '../../core/art'
 import type { Ctx } from '../../core/ui'
+import { CLASS_ICON } from '../../core/tsprites'
 import { svg } from '../../core/ui'
 
 /** O texto curto ao lado do símbolo: "novo", "+12 −3", "falhou", "em execução" ou o tempo. */
@@ -31,12 +32,27 @@ export const rowView = (
   const words = resultWords(c, entry)
   const color = statusColor(entry.status, c.palette)
   if (!c.desktop) {
+    // Terminal: a linha do motor fica (o ctrl+o continua abrindo o resultado); à direita, quem agiu
+    // na cor da classe e o resultado, com o símbolo sempre na última coluna.
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" columnGap={1}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
           {row}
         </Box>
-        <Text color={color}>{`${entry.status === 'run' ? '…' : entry.status === 'err' ? '✗' : '✓'}${words === '' ? '' : ` ${words}`}`}</Text>
+        <Box flexDirection="row" columnGap={1} flexShrink={0}>
+          <Text>{CLASS_ICON[entry.cls]}</Text>
+          <Text bold color={entry.status === 'err' ? color : classColor(entry.cls, c.palette)}>
+            {name}
+          </Text>
+          {words !== '' && (
+            <Text color={entry.status === 'err' ? color : undefined} dimColor={entry.status !== 'err'}>
+              {words}
+            </Text>
+          )}
+          <Text bold color={color}>
+            {entry.status === 'run' ? '◌' : entry.status === 'err' ? '✗' : '✓'}
+          </Text>
+        </Box>
       </Box>
     )
   }
