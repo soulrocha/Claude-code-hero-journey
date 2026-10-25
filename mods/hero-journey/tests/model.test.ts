@@ -581,6 +581,24 @@ describe('diff do inventário (D2)', () => {
     expect(d.more).toBe(0)
     expect(d.lines.map(l => l.kind)).toEqual(['hunk', 'ctx', 'del', 'add', 'hunk', 'del', 'add', 'add'])
     expect(diffArgv('src/app.ts')).toEqual(['git', 'diff', 'HEAD', '--', 'src/app.ts'])
+    expect(diffArgv('src/app:name.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/app:name.ts'])
+    expect(diffArgv('src/*.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/*.ts'])
+  })
+
+  test('linha de contexto vazia dentro de um hunk vira ctx, não meta', async () => {
+    const raw = [
+      'diff --git a/a.ts b/a.ts',
+      '--- a/a.ts',
+      '+++ b/a.ts',
+      '@@ -1,4 +1,4 @@',
+      ' linha 1',
+      '',
+      ' linha 3',
+      '+linha 4',
+    ].join('\n')
+    const d = parseDiff(raw)
+    expect(d.lines.map(l => l.kind)).toEqual(['hunk', 'ctx', 'ctx', 'ctx', 'add'])
+    expect(d.lines[2]).toEqual({ kind: 'ctx', text: '' })
   })
 
   test('arquivo novo (git diff e untrackedDiff) e arquivo excluído', async () => {
@@ -668,12 +686,19 @@ describe('diff do inventário (D2)', () => {
     const body260 = ['@@ -1,259 +1,259 @@', ...Array.from({ length: 259 }, (_, i) => `+linha ${i + 1}`)].join('\n')
     const d260 = parseDiff(body260, DIFF_MAX_SHOWN, DIFF_MAX_READ)
     expect(d260.lines.length).toBe(40)
-    expect(d260.more).toBe(160)
-    expect(d260.added).toBe(199)
+    expect(d260.more).toBe(220)
+    expect(d260.added).toBe(259)
+    expect(d260.approximate).toBe(false)
 
     const u60 = untrackedDiff(Array.from({ length: 60 }, (_, i) => `l${i}`).join('\n'), 40, 200)
     expect(u60.lines.length).toBe(40)
     expect(u60.more).toBe(20)
+
+    const bodyCortado = ['@@ -1,500 +1,500 @@', ...Array.from({ length: 200 }, (_, i) => `+linha ${i + 1}`)].join('\n')
+    const dCortado = parseDiff(bodyCortado, DIFF_MAX_SHOWN, DIFF_MAX_READ, true)
+    expect(dCortado.approximate).toBe(true)
+    expect(dCortado.added).toBe(200)
+    expect(dCortado.more).toBe(161)
   })
 })
 
