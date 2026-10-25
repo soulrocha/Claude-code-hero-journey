@@ -18,7 +18,7 @@ A HUD mexe em três lugares sensíveis. Uma falha em qualquer um deles conta:
 
 ## Versões cobertas
 
-O projeto está em **beta**. Só a versão mais recente da branch `main` recebe correção.
+O projeto está na **1.0**. Só a versão mais recente da branch `main` recebe correção.
 
 ---
 
@@ -38,4 +38,4 @@ This is a one-maintainer, spare-time project: the goal is a reply within 7 days.
 
 ### Supported versions
 
-The project is in **beta**. Only the latest `main` gets fixes.
+The project is at **1.0**. Only the latest `main` gets fixes.

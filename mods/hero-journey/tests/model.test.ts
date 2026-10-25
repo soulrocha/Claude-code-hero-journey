@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { DiaryEntry, Inscription } from '../types'
 import { agentClass, classOf, delivers, readsOnly } from '../hooks/core/classes'
-import { looksPortuguese, resolveLang } from '../hooks/core/i18n'
+import { DICT, looksPortuguese, resolveLang } from '../hooks/core/i18n'
 import { DEFAULT_MEMORY, DEFAULT_PREFS, isOn, migratePrefs, toggleModule } from '../hooks/core/prefs'
 import { buildReport, briefingOf, newCampaign, onPrompt } from '../hooks/modules/campanha/campanha'
 import { alertOf, bagOf, countdown, readingOf, warningsOf, windowOf } from '../hooks/modules/mochila/recursos'
@@ -733,5 +733,12 @@ describe('grimório: timeout, selo parcial e caminhos Windows (B2a, B2b e B2c)',
 
     expect(progressHome('C:\\work\\meu-app', '', 'meu-app')).toBe('C:\\work\\meu-app\\.hero\\tarefas')
     expect(progressHome('C:\\work\\meu-app', 'C:\\Notas', 'meu-app')).toBe('C:\\Notas\\.tarefas\\meu-app')
+  })
+})
+
+describe('barras sem contagem que anda (B1b)', () => {
+  test('o tooltip da Mana e do Vigor diz só a hora da renovação: a fonte do Svg não muda a cada minuto', () => {
+    expect(DICT.pt.resetAt('16:20')).toBe('às 16:20')
+    expect(DICT.en.resetAt('16:20')).toBe('at 16:20')
   })
 })

@@ -10,7 +10,7 @@ import type { Campaign, Cls, GuardMode, Inventory, Member, ModuleId, Prefs, Prog
 import { barArt, categoryHeader, classColor, classGallery, featureList, itemIcon, linkIcon, objectiveBar, parade, petArt, rarityTone, toneOf } from '../../core/art'
 import type { IconName, ResRow } from '../../core/art'
 import { campWithSageArt, stageArt } from '../../core/cenarios'
-import { clockOf, humanType, untilOf } from '../../core/classes'
+import { clockOf, humanType } from '../../core/classes'
 import { isOn, MODULES } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
 import { clawdArt, GITHUB_URL, LINKEDIN_URL, pxOf, svg, textBar, title, VERSION } from '../../core/ui'
@@ -336,7 +336,7 @@ export const resourceData = (c: Ctx, r: Resources | null, now: number): ResRow[]
     const w = r?.windows.find(x => x.kind === kind)
     const v = w === undefined ? undefined : windowOf(w, now)
     const name = c.t.footer[key]
-    const at = w?.resetsAt !== undefined && v !== undefined && !v.refilled ? c.t.resetAt(clockOf(w.resetsAt), untilOf(w.resetsAt, now)) : ''
+    const at = w?.resetsAt !== undefined && v !== undefined && !v.refilled ? c.t.resetAt(clockOf(w.resetsAt)) : ''
     rows.push({
       key,
       label: name,

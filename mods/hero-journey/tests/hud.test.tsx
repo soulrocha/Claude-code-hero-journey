@@ -283,3 +283,49 @@ test('diff do inventário no painel (D3): abrir, voltar, diretório não rastrea
   expect(await tui.find({ key: 'item-src/app.ts' })).toBeDefined()
   await tui.unmount()
 })
+
+test('diff do inventário: caminho a partir da raiz do repositório, arquivo novo grande e diff que some depois do commit', { options: { language: 'pt-BR' } }, async ($, on) => {
+  on('session.usage', usage)
+  on('session.start', () => ({ cwd: '/raiz/sub' }) as never)
+  const runs: { argv: string[]; timeoutMs?: number }[] = []
+  const reads: string[] = []
+  let clean = false
+  on('fs.read', ($$, e) => {
+    reads.push((e as { path?: string }).path ?? '')
+    return { value: 'novo\n' } as never
+  })
+  on('fs.stat', () => ({ value: { kind: 'file', size: 2 * 1024 * 1024 } }) as never)
+  on('process.run', ($$, e) => {
+    const ev = e as { argv: readonly string[]; timeoutMs?: number }
+    runs.push({ argv: [...ev.argv], timeoutMs: ev.timeoutMs })
+    const cmd = ev.argv.join(' ')
+    const ok = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } }) as never
+    if (cmd.includes('rev-parse')) return ok('/raiz\n')
+    if (cmd.includes('status')) return ok(clean ? '## main\0' : '## main\0 M sub/a b.ts\0?? grande.log\0')
+    if (cmd.includes('--literal-pathspecs')) return ok('diff --git a/sub/a b.ts b/sub/a b.ts\n@@ -1 +1 @@\n-x\n+y\n')
+    return ok('')
+  })
+  on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: 'x' } }) as never)
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'inv-1', file_path: 'x' } as never)
+  const ui = await $.ui.mount(pane('desktop'))
+
+  // O git diff roda na raiz (o status dá o caminho a partir dela), com `--` antes do caminho.
+  await ui.press({ key: 'item-sub/a b.ts' })
+  const diff = runs.find(r => r.argv.includes('--literal-pathspecs'))
+  expect(diff?.argv).toEqual(['git', '-C', '/raiz', '--literal-pathspecs', 'diff', 'HEAD', '--', 'sub/a b.ts'])
+  expect(await ui.find({ text: /\+y/ })).toBeDefined()
+  await ui.press({ key: 'back' })
+
+  // Arquivo novo de 2 MB: aviso, sem ler o arquivo.
+  await ui.press({ key: 'item-grande.log' })
+  expect(await ui.find({ text: /grande demais/ })).toBeDefined()
+  expect(reads.some(p => p.endsWith('grande.log'))).toBe(false)
+  await ui.press({ key: 'back' })
+
+  // Com o diff aberto, o commit tira o arquivo do inventário: o painel volta.
+  await ui.press({ key: 'item-sub/a b.ts' })
+  expect(await ui.find({ key: 'back' })).toBeDefined()
+  clean = true
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'inv-2', file_path: 'x' } as never)
+  expect(await ui.find({ key: 'back' })).toBeUndefined()
+})
