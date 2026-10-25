@@ -2,6 +2,24 @@
 
 As mudanças de cada versão. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.7.0] - 2026-10-12
+
+A HUD chega ao Claude Code CLI (terminal), desenhada para o que o terminal mostra.
+
+### Adicionado
+- **Os 19 Clawds do terminal:** pixel art própria na grade do Clawd, sem fundo, cada um com o que veste no desktop; na falha, a peça cai e aparece o balão vermelho. O acampamento leva a fogueira (brasas e "Zz" com a sessão parada).
+- **Palco no painel do terminal,** encaixado ao lado da conversa: grande com o painel livre, menor com plano, grupo ou inventário, animado em dois quadros (o Clawd respira, a chama tremula).
+- **Um ícone por classe** (🔮 Mago, 🐺 Bruxo…) na faixa, no diário, no spinner, no recibo e na lista do Sobre.
+- **Recibo no lugar do "Baked for 3s"** no terminal, com o ícone e a cor da classe; ali ele deixa de virar texto embaixo da resposta.
+- **Alerta de recurso no fim da linha de dicas** embaixo do prompt (só o terminal desenha).
+- **Spinner do terminal** com o giro, o ícone e o nome na cor da classe.
+- Grimório com o Sábio no topo; Primeiros passos com o acampamento; Sobre com dois Clawds e as 19 classes com ícone.
+
+### Mudou
+- **Diário no terminal:** a linha do motor fica e ganha, à direita, o ícone, a classe e o resultado (antes o mod não fazia nada ali).
+- **Recursos no terminal:** uma linha por recurso com barra em texto, e o rodapé preso no fim do painel encaixado, como no desktop.
+- **Guarda no terminal:** 🐉, o arquivo e até 4 linhas da mudança, dentro das 12 linhas que o motor aceita em volta do diálogo.
+
 ## [0.6.0] - 2026-10-11
 
 O Clawd ganhou 19 classes, o painel virou um palco e o grimório passou a salvar o progresso para continuar depois, em qualquer agente. O mapa das classes está em [docs/classes.md](docs/classes.md).
