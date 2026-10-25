@@ -28,6 +28,8 @@ export type ParsedDiff = {
   more: number
   /** Indica se os totais são aproximados (ex.: quando a entrada já veio truncada pelo chamador). */
   approximate?: boolean
+  /** Indica que o item é um diretório não rastreado (sem conteúdo de arquivo). */
+  directory?: boolean
 }
 
 /** Decodifica caminhos que o Git coloca entre aspas com escapes octais UTF-8 (`\303\247`). */

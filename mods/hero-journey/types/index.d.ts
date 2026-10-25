@@ -110,7 +110,7 @@ export type Turn = { busy: boolean; endedAt?: number }
 export type Working = { tool: string; cls: Cls; summary: string; file?: string; at?: number }
 /** Os cartões acima do prompt: só o fim de marco e o de compactar (com o salvar progresso). */
 export type Card = 'marco' | 'compactar'
-export type View = 'main' | 'config' | 'memoria' | 'sobre' | 'grimorio' | 'boasVindas'
+export type View = 'main' | 'config' | 'memoria' | 'sobre' | 'grimorio' | 'boasVindas' | 'diff'
 
 /** Uma janela de uso do plano (5 horas, semanal), como o motor a mede. */
 export type UsageWindow = { kind: string; percentUsed: number; resetsAt?: string }
