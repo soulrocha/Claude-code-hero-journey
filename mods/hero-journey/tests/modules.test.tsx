@@ -1,5 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
+import { sameNote } from '../hooks/modules/grimorio/grimorio'
+
 const PLUGIN = 'hero-journey'
 
 const pane = {
@@ -1012,7 +1014,95 @@ test('mochila (R5c e R5d): erro real ao compactar avisa compactFailed; turn.busy
   const idle = await $.ui.mount(band)
   await idle.press({ key: 'card-only' })
   expect(compacts).toBe(1)
-  expect(toasts.some(t => /^Não deu para compactar: .+/.test(t))).toBe(true)
+  // O host pode trocar o texto do erro: o motivo existe e não é o aviso de "ocupado".
+  const failure = toasts.find(t => t.startsWith('Não deu para compactar: '))
+  expect(failure).toBeDefined()
+  const why = failure!.slice('Não deu para compactar: '.length).trim()
+  expect(why).not.toBe('')
+  expect(why).not.toContain('O Claude está trabalhando')
   expect(await idle.find({ key: 'card-only' })).toBeDefined()
   await idle.unmount()
+})
+
+test('grimório (S3): sameNote ignora a data só no frontmatter, nunca no corpo', async () => {
+  const note = (date: string, body: string) => `---\ntipo: decisao\ndata: ${date}\norigem: hero-journey\n---\n\n${body}\n`
+  expect(sameNote(note('2020-01-01', 'Texto'), note('2026-10-25', 'Texto'))).toBe(true)
+  expect(sameNote(undefined, note('2026-10-25', 'Texto'))).toBe(false)
+  expect(sameNote(note('2020-01-01', 'Texto\ndata: 2020-01-01'), note('2020-01-01', 'Texto\ndata: 2026-10-25'))).toBe(false)
+  expect(sameNote('Texto\ndata: 1', 'Texto\ndata: 2')).toBe(false)
+})
+
+test('mochila (S4): o motivo da falha do salvar não fica preso: pedir o cartão de novo zera', { options: { language: 'pt-BR' } }, async ($, on) => {
+  mock.store(on)
+  on('session.usage', usage)
+  on('session.cwd', () => ({ value: '/repo' }) as never)
+  on('session.id', () => ({ value: 'sessao-s4' }) as never)
+  on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
+  on('turn.complete', () => ({ text: '' }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, emptyBand)
+  on('fs.exists', () => ({ value: false }) as never)
+  on('fs.list', () => ({ deny: 'EACCES: permissão negada' }) as never)
+  await $.turn.start({ text: 'Corrigir o parser de diff', turnId: 't1' } as never)
+  await $.turn.complete({ turnId: 't1', reason: 'answer', durationMs: 1000, isAborted: false, answer: '**Missão:** Parser de diff\n**Próximo:** rodar testes' } as never)
+
+  // O salvar pelo botão do painel (sem cartão) também grava o motivo; aqui o caminho alcançável é o do cartão.
+  // (O aviso do Sábio só aparece após 5 min de cochilo, e o relógio do teste é fixo.)
+  const p = await $.ui.mount(pane)
+  await p.press({ key: 'compact' })
+  const card = await $.ui.mount(band)
+  await card.press({ key: 'card-both' })
+  expect(await card.find({ text: /O progresso não foi salvo/ })).toBeDefined()
+  // Um novo pedido do cartão (a Mochila do painel) começa limpo, sem o motivo antigo.
+  await p.press({ key: 'compact' })
+  expect(await card.find({ text: /O progresso não foi salvo/ })).toBeUndefined()
+  expect(await card.find({ key: 'card-anyway' })).toBeUndefined()
+  expect(await card.find({ key: 'card-only' })).toBeDefined()
+  await card.unmount()
+  await p.unmount()
+})
+
+test('grimório (S1): prazo vencido mostra o que já foi gravado, e a gravação em voo que conclui depois não marca duas vezes', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+  const files: Record<string, string> = {}
+  const toasts: string[] = []
+  const writes: string[] = []
+  grimEngine(on, files, toasts, true, writes)
+  let expire = () => {}
+  on('clock.sleep', (() =>
+    new Promise(resolve => {
+      expire = () => resolve({ value: undefined })
+    })) as never)
+  on('tool.list', () => ({ value: [{ name: 'mcp__ai-memory__memory_write_page', description: '', mcp: true }] }) as never)
+  let late: (v: unknown) => void = () => {}
+  const pages: string[] = []
+  on('mcp.call', ((_: unknown, e: { tool: string; args: { path?: string } }) => {
+    if (e.tool !== 'memory_write_page') return { value: { content: [{ type: 'text', text: '{}' }], isError: false } }
+    pages.push(String(e.args.path))
+    return new Promise(resolve => {
+      late = resolve
+    })
+  }) as never)
+  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor. Decidimos que o cache expira em cinco minutos.'))
+  await openGrimoire($)
+  const page = await $.ui.mount(pane)
+  const second = 't9-1-decidimos-que-o-cache-expira-em-cinco-mi'
+  await page.press({ key: `dest-${second}` })
+  await page.press({ key: `dest-${second}` })
+
+  const first = page.press({ key: 'grim-seal' })
+  // Dá a vez ao Selar para chegar à gravação pendurada.
+  for (let i = 0; i < 20 && pages.length === 0; i++) await new Promise(r => setTimeout(r, 10))
+  expect(pages.length).toBe(1)
+  expire()
+  await first
+  // A contagem real: a nota do vault já estava gravada quando o prazo venceu.
+  expect(toasts.filter(t => t.includes('1 inscrição selada')).length).toBe(1)
+  expect(toasts.some(t => t.includes('Um destino falhou') && t.includes('timeout'))).toBe(true)
+
+  // A gravação em voo conclui depois do prazo: a inscrição é marcada uma vez e o Selar seguinte não regrava nada.
+  late({ value: { content: [{ type: 'text', text: '{}' }], isError: false } })
+  for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 10))
+  expect(await page.find({ key: 'grim-seal' })).toBeUndefined()
+  await page.unmount()
+  expect(pages.length).toBe(1)
+  expect(writes.filter(w => w.startsWith('/vault/Inbox/')).length).toBe(1)
 })

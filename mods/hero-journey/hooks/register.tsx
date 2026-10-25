@@ -189,6 +189,7 @@ async function savePrefs($: EngineInterface, change: (p: Prefs) => Prefs) {
 }
 
 async function pushCard($: EngineInterface, card: Card) {
+  if (card === 'compactar') saveFailed = undefined
   await update($, cards, list =>
     list.includes(card) ? list : [...list, card].sort((a, b) => CARD_ORDER.indexOf(a) - CARD_ORDER.indexOf(b)),
   )
@@ -404,7 +405,9 @@ async function seal($: EngineInterface) {
     return
   }
   sealingAt = startedAt
-  const run = { aborted: false }
+  // Limite conhecido: o prazo não cancela uma gravação já em voo; ela pode concluir depois dele
+  // (a inscrição é marcada uma vez só e o Selar seguinte não duplica no vault).
+  const run = { aborted: false, done: 0 }
   try {
     // O prazo corre no relógio do motor ($.clock), que o teste avança sem esperar.
     const job = sealRun($, run)
@@ -417,14 +420,17 @@ async function seal($: EngineInterface) {
     if ((await Promise.race([job, deadline])) === late) throw new Error(`seal: timeout (${SEAL_TOTAL_MS / 1000}s)`)
   } catch (err) {
     run.aborted = true
-    $.ui.toast(DICT[await langNow($)].notSealed(0, err instanceof Error ? err.message : String(err)))
+    const t = DICT[await langNow($)]
+    // O que já foi gravado até aqui vale: mostra a contagem real, depois a falha.
+    if (run.done > 0) $.ui.toast(t.sealed(run.done))
+    $.ui.toast(t.notSealed(0, err instanceof Error ? err.message : String(err)))
   } finally {
     // Só solta a trava se ela ainda é desta execução.
     if (sealingAt === startedAt) sealingAt = 0
   }
 }
 
-async function sealRun($: EngineInterface, run: { aborted: boolean }) {
+async function sealRun($: EngineInterface, run: { aborted: boolean; done: number }) {
   const t = DICT[await langNow($)]
   // Inscrição sem destino fica onde está, sem aviso de falha: falta a pessoa dizer onde guardar.
   const list = pending(await read($, inscriptions)).filter(i => i.destinations.length > 0)
@@ -461,24 +467,29 @@ async function sealRun($: EngineInterface, run: { aborted: boolean }) {
         missed.push(`${t.dest[w.dest]}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
-    if (ok.length > 0) sealed[i.id] = { ok, written, full: ok.length === writes.length && writes.length === rem.length }
+    if (ok.length > 0) {
+      const full = ok.length === writes.length && writes.length === rem.length
+      sealed[i.id] = { ok, written, full }
+      // Marca já, inscrição a inscrição: o que foi gravado não depende de o Selar chegar ao fim.
+      await update($, inscriptions, all =>
+        all.map((x): Inscription => {
+          if (x.id !== i.id) return x
+          const had = x.written ?? []
+          return {
+            ...x,
+            sealed: [...new Set([...(x.sealed ?? []), ...ok])],
+            written: [...had, ...written.filter(n => !had.some(h => h.dest === n.dest && h.path === n.path))],
+          }
+        }),
+      )
+      if (full) run.done += 1
+    }
   }
   const done = Object.values(sealed).filter(s => s.full).length
   if (!run.aborted) {
     if (done > 0) $.ui.toast(t.sealed(done))
     if (done < list.length || missed.length > 0) $.ui.toast(t.notSealed(list.length - done, missed.join('; ')))
   }
-  await update($, inscriptions, all =>
-    all.map((i): Inscription => {
-      const hit = sealed[i.id]
-      if (hit === undefined) return i
-      return {
-        ...i,
-        sealed: [...new Set([...(i.sealed ?? []), ...hit.ok])],
-        written: [...(i.written ?? []), ...hit.written],
-      }
-    }),
-  )
   if (pending(await read($, inscriptions)).length === 0) await dropCard($, 'marco')
 }
 

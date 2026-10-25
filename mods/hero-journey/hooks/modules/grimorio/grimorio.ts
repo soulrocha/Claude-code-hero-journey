@@ -159,7 +159,8 @@ export const withSuffix = (path: string, n: number) => path.replace(/(\.md)?$/, 
 
 /** A mesma nota, ignorando a linha `data:` do frontmatter: uma nova tentativa em outro dia não duplica. */
 export const sameNote = (a: string | undefined, b: string) => {
-  const plain = (t: string) => t.replace(/\r\n/g, '\n').replace(/^data: .*\n/m, '')
+  // Só a linha data: do frontmatter (entre o primeiro par de ---); no corpo, data: é texto.
+  const plain = (t: string) => t.replace(/\r\n/g, '\n').replace(/^(---\n(?:(?!---\n)[^]*?\n)?)data: .*\n/, '$1')
   return a !== undefined && plain(a) === plain(b)
 }
 
