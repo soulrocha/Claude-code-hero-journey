@@ -61,8 +61,9 @@ for (const [option, mochila, about, camp] of [
     expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain(camp)
     expect(await ui.find({ text: new RegExp(mochila) })).toBeDefined()
     expect(await ui.find({ text: /34%/ })).toBeDefined()
-    // A Mochila é o botão de compactar.
+    // A Mochila é o botão de compactar; o ícone fica fora dele, alinhado com o da Mana e o do Vigor.
     expect(await ui.find({ key: 'compact' })).toBeDefined()
+    expect(String((await ui.find({ key: 'compact' }))?.props.label)).not.toContain('🎒')
 
     await ui.press({ key: 'config' })
     await ui.press({ key: 'lang-en' })
