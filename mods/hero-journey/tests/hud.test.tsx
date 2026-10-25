@@ -162,3 +162,124 @@ test('a mochila leva a instrução do /compact ao prompt, sem gastar tokens', { 
   expect(filled).toStartWith('/compact ')
   await card.unmount()
 })
+
+test('diff do inventário no painel (D3): abrir, voltar, diretório não rastreado e binário', { options: { language: 'pt-BR' } }, async ($, on) => {
+  on('session.usage', usage)
+  on('session.start', () => ({ cwd: '/repo' }) as never)
+  const fsReads: string[] = []
+  on('fs.read', ($$, e) => {
+    const p = (e as { path?: string }).path ?? ''
+    fsReads.push(p)
+    if (p.endsWith('bin-untracked.dat')) return { value: '\0PNG\r\n\x1a\n' } as never
+    return { value: 'conteúdo texto\n' } as never
+  })
+  on('fs.stat', ($$, e) => {
+    const p = (e as { path?: string }).path ?? ''
+    if (p.endsWith('docs/') || p.endsWith('docs')) return { value: { kind: 'dir' } } as never
+    return { value: { kind: 'file' } } as never
+  })
+  on('process.run', ($$, e) => {
+    const argv = (e as { argv: readonly string[] }).argv
+    const cmd = argv.join(' ')
+    if (cmd.includes('status')) {
+      return {
+        value: {
+          exitCode: 0,
+          stdout: '## main\0 M src/app.ts\0 M bin-tracked.png\0?? docs/\0?? bin-untracked.dat\0',
+          stderr: '',
+        },
+      } as never
+    }
+    if (cmd.includes('diff') && cmd.includes('--numstat')) {
+      return {
+        value: {
+          exitCode: 0,
+          stdout: '3\t1\tsrc/app.ts\0',
+          stderr: '',
+        },
+      } as never
+    }
+    if (cmd.includes('log')) {
+      return {
+        value: {
+          exitCode: 0,
+          stdout: 'a1b2c3d\x1fCommit teste\x1f1700000000\n',
+          stderr: '',
+        },
+      } as never
+    }
+    if (cmd.includes('--literal-pathspecs') && cmd.includes('src/app.ts')) {
+      return {
+        value: {
+          exitCode: 0,
+          stdout: 'diff --git a/src/app.ts b/src/app.ts\nindex 111..222 100644\n--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1,3 +1,5 @@\n const a = 1\n-const b = 2\n+const b = 3\n+const c = 4\n',
+          stderr: '',
+        },
+      } as never
+    }
+    if (cmd.includes('--literal-pathspecs') && cmd.includes('bin-tracked.png')) {
+      return {
+        value: {
+          exitCode: 0,
+          stdout: 'Binary files a/bin-tracked.png and b/bin-tracked.png differ\n',
+          stderr: '',
+        },
+      } as never
+    }
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+
+  on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: 'x' } }) as never)
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'init-inv', file_path: 'x' } as never)
+
+  // 1. Abre o painel no desktop: inventário visível com os itens.
+  const ui = await $.ui.mount(pane('desktop'))
+  expect(await ui.find({ key: 'item-src/app.ts' })).toBeDefined()
+  expect(await ui.find({ key: 'item-docs/' })).toBeDefined()
+  expect(await ui.find({ key: 'item-bin-tracked.png' })).toBeDefined()
+  expect(await ui.find({ key: 'item-bin-untracked.dat' })).toBeDefined()
+
+  // 2. Abrir diff de arquivo rastreado: mostra diff com linhas + e -, e botão de voltar.
+  await ui.press({ key: 'item-src/app.ts' })
+  expect(await ui.find({ key: 'back' })).toBeDefined()
+  expect((await ui.find({ key: 'back' }))?.text).toContain('‹ Inventário')
+  expect(await ui.find({ text: /src\/app\.ts/ })).toBeDefined()
+  expect(await ui.find({ text: /\+const b = 3/ })).toBeDefined()
+  expect(await ui.find({ text: /-const b = 2/ })).toBeDefined()
+
+  // 3. Voltar: volta para a tela principal (main).
+  await ui.press({ key: 'back' })
+  expect(await ui.find({ key: 'item-src/app.ts' })).toBeDefined()
+  expect(await ui.find({ key: 'back' })).toBeUndefined()
+
+  // 4. Diretório não rastreado: mostra aviso e NÃO chama $.fs.read.
+  await ui.press({ key: 'item-docs/' })
+  expect(await ui.find({ key: 'diff-dir' })).toBeDefined()
+  expect((await ui.find({ key: 'diff-dir' }))?.text).toContain('Diretório (sem prévia em texto).')
+  expect(fsReads.some(f => f.endsWith('docs/') || f.endsWith('docs'))).toBe(false)
+  await ui.press({ key: 'back' })
+
+  // 5. Arquivo binário rastreado e não rastreado: mostra aviso de binário.
+  await ui.press({ key: 'item-bin-tracked.png' })
+  expect(await ui.find({ key: 'diff-binary' })).toBeDefined()
+  expect((await ui.find({ key: 'diff-binary' }))?.text).toContain('Arquivo binário (sem prévia em texto).')
+  await ui.press({ key: 'back' })
+
+  await ui.press({ key: 'item-bin-untracked.dat' })
+  expect(await ui.find({ key: 'diff-binary' })).toBeDefined()
+  expect((await ui.find({ key: 'diff-binary' }))?.text).toContain('Arquivo binário (sem prévia em texto).')
+  await ui.press({ key: 'back' })
+
+  await ui.unmount()
+
+  // 6. No terminal, a mesma página em texto puro, sem Svg.
+  const tui = await $.ui.mount(pane('terminal'))
+  await tui.press({ key: 'item-src/app.ts' })
+  expect(await tui.find({ key: 'back' })).toBeDefined()
+  expect(await tui.find({ text: /src\/app\.ts/ })).toBeDefined()
+  expect(await tui.find({ text: /\+const b = 3/ })).toBeDefined()
+  expect(await tui.find({ type: 'Svg' })).toBeUndefined()
+  await tui.press({ key: 'back' })
+  expect(await tui.find({ key: 'item-src/app.ts' })).toBeDefined()
+  await tui.unmount()
+})

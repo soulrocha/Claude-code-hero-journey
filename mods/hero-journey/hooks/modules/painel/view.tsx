@@ -54,6 +54,7 @@ export type PaneActions = {
   dismissSave: () => void
   continueTask: (p: Progress) => void
   continueHow: () => void
+  openDiff: (path: string) => void
 }
 
 /** O corpo ocupa o meio; os recursos e os botões ficam presos no fim (o painel recebe a altura toda). */
@@ -67,7 +68,7 @@ export const mainView = (c: Ctx, d: PaneData, act: PaneActions): RenderElement =
         {grimSection(c, d, act)}
         {goalSection(c, d, act)}
         {partySection(c, d)}
-        {inventorySection(c, d)}
+        {inventorySection(c, d, act)}
       </Box>
       {footer(c, d, act)}
     </Box>
@@ -278,8 +279,8 @@ const partySection = (c: Ctx, d: PaneData) => {
 }
 
 /** O inventário: só com arquivos mexidos, com a raridade pelo impacto. */
-const inventorySection = (c: Ctx, d: PaneData) => {
-  const { Box, Text } = c.ui
+const inventorySection = (c: Ctx, d: PaneData, act: PaneActions) => {
+  const { Box, Button, Text } = c.ui
   const inv = d.inventory
   if (!inv.isRepo || inv.items.length === 0) return null
   const shown = inv.items.slice(0, Math.max(1, d.fit.maxItems))
@@ -296,9 +297,7 @@ const inventorySection = (c: Ctx, d: PaneData) => {
         return (
           <Box key={`it-${item.path}`} flexDirection="row" columnGap={1} alignItems="center" hover={{ backgroundColor: toneOf(c.palette).track }}>
             {svg(c, itemIcon(item.path, item.rarity, c.palette, `${item.path} — ${c.t.rarity[item.rarity]}`), `ic-${item.path}`)}
-            <Text color={rarityTone(item.rarity, c.palette)} wrap="truncate-start">
-              {c.desktop ? shortPath(item.path) : item.path}
-            </Text>
+            <Button key={`item-${item.path}`} plain label={c.desktop ? shortPath(item.path) : item.path} onPress={() => act.openDiff(item.path)} />
             <Box flexGrow={1} />
             <Text color={added ? 'success' : undefined} dimColor={!added}>
               {diff}
