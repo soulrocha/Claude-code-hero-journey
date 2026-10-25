@@ -6,9 +6,7 @@ export const DIFF_MAX_READ = 200
 
 /** Comando git por argv, sem shell, para ler o diff de um item do inventário. */
 export const diffArgv = (path: string) =>
-  path.includes(':') || path.includes('*')
-    ? (['git', '--literal-pathspecs', 'diff', 'HEAD', '--', path] as const)
-    : (['git', 'diff', 'HEAD', '--', path] as const)
+  ['git', '--literal-pathspecs', 'diff', 'HEAD', '--', path] as const
 
 export type DiffKind = 'add' | 'del' | 'hunk' | 'ctx' | 'meta'
 
@@ -26,7 +24,7 @@ export type ParsedDiff = {
   isDeleted: boolean
   renamedFrom?: string
   renamedTo?: string
-  /** Quantas linhas não mostradas ficaram de fora por passar de `max`. */
+  /** Quantas linhas de diff não mostradas ficaram de fora por passar de `max` (hunk, contexto e meta incluídos; `added`/`removed` contam só `+` e `-`). */
   more: number
   /** Indica se os totais são aproximados (ex.: quando a entrada já veio truncada pelo chamador). */
   approximate?: boolean
@@ -74,8 +72,9 @@ const HEADER_PREFIXES = [
 /**
  * Analisa a saída de `git diff` de um arquivo.
  *
- * `added` e `removed` contam todas as adições e remoções do texto recebido.
- * `more` reflete o total real de linhas de diff não mostradas (`total - lines.length`).
+ * `added` e `removed` contam apenas as linhas de adição (+) e remoção (-) do texto recebido.
+ * `more` reflete o total real de linhas de diff não mostradas (`total - lines.length`),
+ * incluindo hunk (@@), contexto e meta, enquanto `added` e `removed` contam só `+` e `-`.
  * Se o texto recebido já foi cortado (por exemplo, em `DIFF_MAX_READ` pelo chamador),
  * passe `approximate = true`; a função computa os totais reais sobre o que recebeu,
  * marcando o resultado como aproximado sem inventar números.
