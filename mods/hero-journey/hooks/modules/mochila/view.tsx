@@ -16,7 +16,7 @@ export type CompactActions = {
 }
 
 /** O que o bloco de salvar progresso mostra; ausente com o recurso desligado ou sem objetivo. */
-export type SaveOffer = { task: string; next: string; dest: string; onVerify: (value: string) => void }
+export type SaveOffer = { task: string; next: string; dest: string; onVerify: (value: string) => void; failed?: string }
 
 export const compactCard = (c: Ctx, context: string, save: SaveOffer | undefined, act: CompactActions): RenderElement => {
   const { Box, Button, Text } = c.ui
@@ -31,10 +31,20 @@ export const compactCard = (c: Ctx, context: string, save: SaveOffer | undefined
         </Text>
       </Box>
       {save !== undefined && progressBlock(c, save.task, save.next, save.dest, save.onVerify)}
+      {save?.failed !== undefined && (
+        <Text key="card-save-failed" color="error" wrap="wrap">
+          {c.t.saveNotDone(save.failed)}
+        </Text>
+      )}
       <Box flexDirection="row" columnGap={3} alignItems="center" flexWrap="wrap">
         <Button key="card-dismiss" plain dimColor label={c.t.notNow} onPress={act.dismiss} />
         <Box flexGrow={1} />
-        {save !== undefined && <Button key="card-only" plain label={c.t.onlyCompact} onPress={act.only} />}
+        {save !== undefined &&
+          (save.failed === undefined ? (
+            <Button key="card-only" plain label={c.t.onlyCompact} onPress={act.only} />
+          ) : (
+            <Button key="card-anyway" plain label={c.t.compactAnyway} onPress={act.only} />
+          ))}
         {save !== undefined ? (
           <Button key="card-both" variant="primary" label={c.t.saveAndCompact} onPress={act.both} />
         ) : (

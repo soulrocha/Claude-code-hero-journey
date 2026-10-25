@@ -866,3 +866,37 @@ test('grimório (R3): tool.list que falha não toca a cada desenho; na ação da
   // O vault continua valendo: a nota saiu mesmo sem o ai-memory.
   expect(Object.keys(files).some(k => k.startsWith('/vault/Inbox/'))).toBe(true)
 })
+
+test('mochila (R4): Salvar e compactar que falha no salvar mostra o motivo e oferece Compactar assim mesmo', { options: { language: 'pt-BR' } }, async ($, on) => {
+  mock.store(on)
+  on('session.usage', usage)
+  on('session.cwd', () => ({ value: '/repo' }) as never)
+  on('session.id', () => ({ value: 'sessao-r4' }) as never)
+  on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
+  on('turn.complete', () => ({ text: '' }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, emptyBand)
+  on('fs.exists', () => ({ value: false }) as never)
+  on('fs.list', () => ({ deny: 'EACCES: permissão negada' }) as never)
+  let compacted = 0
+  on('session.compact', () => {
+    compacted += 1
+    return { messages: [{ role: 'user', text: 'resumo', toolUses: [] }], tokensBefore: 100000, tokensAfter: 20000 } as never
+  })
+  await $.turn.start({ text: 'Corrigir o parser de diff', turnId: 't1' } as never)
+  await $.turn.complete({ turnId: 't1', reason: 'answer', durationMs: 1000, isAborted: false, answer: '**Missão:** Parser de diff\n**Próximo:** rodar testes' } as never)
+  const p = await $.ui.mount(pane)
+  await p.press({ key: 'compact' })
+  await p.unmount()
+
+  const card = await $.ui.mount(band)
+  expect(await card.find({ key: 'card-anyway' })).toBeUndefined()
+  await card.press({ key: 'card-both' })
+  expect(compacted).toBe(0)
+  expect(await card.find({ text: /O progresso não foi salvo: .*EACCES/ })).toBeDefined()
+  expect((await card.find({ key: 'card-anyway' }))?.text).toContain('Compactar assim mesmo')
+  expect(await card.find({ key: 'card-both' })).toBeDefined()
+  await card.press({ key: 'card-anyway' })
+  expect(compacted).toBe(1)
+  expect(await card.find({ key: 'card-both' })).toBeUndefined()
+  await card.unmount()
+})
