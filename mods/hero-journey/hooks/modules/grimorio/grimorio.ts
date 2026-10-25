@@ -157,6 +157,12 @@ export const isSubfolder = (sub: string) => !/^([a-z]:|[\\/])/i.test(sub) && !su
 /** `nota.md` → `nota-2.md`: o nome livre seguinte, para nunca sobrescrever uma nota. */
 export const withSuffix = (path: string, n: number) => path.replace(/(\.md)?$/, `-${n}$1`)
 
+/** A mesma nota, ignorando a linha `data:` do frontmatter: uma nova tentativa em outro dia não duplica. */
+export const sameNote = (a: string | undefined, b: string) => {
+  const plain = (t: string) => t.replace(/\r\n/g, '\n').replace(/^data: .*\n/m, '')
+  return a !== undefined && plain(a) === plain(b)
+}
+
 /** Candidatos de um turno: decisões e conquistas na resposta, regras na mensagem da pessoa. */
 export const detect = (answer: string, prompt: string, turnId: string): Omit<Inscription, 'destinations'>[] => {
   const found: Omit<Inscription, 'destinations'>[] = []
