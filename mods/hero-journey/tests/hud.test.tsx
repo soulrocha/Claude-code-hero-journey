@@ -61,8 +61,9 @@ for (const [option, mochila, about, camp] of [
     expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain(camp)
     expect(await ui.find({ text: new RegExp(mochila) })).toBeDefined()
     expect(await ui.find({ text: /34%/ })).toBeDefined()
-    // A Mochila é o botão de compactar.
+    // A Mochila é o botão de compactar; o ícone fica fora dele, alinhado com o da Mana e o do Vigor.
     expect(await ui.find({ key: 'compact' })).toBeDefined()
+    expect(String((await ui.find({ key: 'compact' }))?.props.label)).not.toContain('🎒')
 
     await ui.press({ key: 'config' })
     await ui.press({ key: 'lang-en' })
@@ -86,15 +87,6 @@ test('todo Svg do painel declara o esquema de cor (sem ele o frame pinta fundo b
   const svgs = await ui.findAll({ type: 'Svg' })
   expect(svgs.length).toBeGreaterThan(0)
   for (const s of svgs) expect(String(s.props.source)).toContain('<style>:root{color-scheme:dark}</style>')
-  await ui.unmount()
-})
-
-test('no terminal o painel desenha só texto', { options: { language: 'pt-BR' } }, async ($, on) => {
-  on('session.usage', usage)
-  const ui = await $.ui.mount(pane('terminal'))
-  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
-  expect(await ui.find({ text: /Sua vez/ })).toBeDefined()
-  expect(await ui.find({ text: /Mochila 34%/ })).toBeDefined()
   await ui.unmount()
 })
 

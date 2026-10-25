@@ -2,6 +2,33 @@
 
 As mudanças de cada versão. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.7.0] - 2026-10-25
+
+A HUD chega ao Claude Code CLI (terminal), desenhada para o que o terminal mostra, e o grimório e o compactar ficam mais confiáveis.
+
+### Adicionado
+- **Os 19 Clawds do terminal:** pixel art própria na grade do Clawd, sem fundo, cada um com o que veste no desktop; na falha, a peça cai e aparece o balão vermelho. O acampamento leva a fogueira (brasas e "Zz" com a sessão parada).
+- **Palco no painel do terminal,** encaixado ao lado da conversa: grande com o painel livre, menor com plano, grupo ou inventário, animado em dois quadros (o Clawd respira, a chama tremula).
+- **Um ícone por classe** (🔮 Mago, 🐺 Bruxo…) na faixa, no diário, no spinner, no recibo e na lista do Sobre.
+- **Recibo no lugar do "Baked for 3s"** no terminal, com o ícone e a cor da classe; ali ele deixa de virar texto embaixo da resposta.
+- **Alerta de recurso no fim da linha de dicas** embaixo do prompt (só o terminal desenha).
+- **Spinner do terminal** com o giro, o ícone e o nome na cor da classe.
+- Grimório com o Sábio no topo; Primeiros passos com o acampamento; Sobre com dois Clawds e as 19 classes com ícone.
+
+### Mudou
+- **Diário no terminal:** a linha do motor fica e ganha, à direita, o ícone, a classe e o resultado (antes o mod não fazia nada ali).
+- **Recursos no terminal:** uma linha por recurso com barra em texto, e o rodapé preso no fim do painel encaixado, como no desktop.
+- **Guarda no terminal:** 🐉, o arquivo e até 4 linhas da mudança, dentro das 12 linhas que o motor aceita em volta do diálogo.
+
+### Corrigido
+- **Grimório:** o Selar não fica mais preso quando o ai-memory não responde (cada chamada tem prazo, e o Selar inteiro também); um segundo clique avisa que ainda está selando.
+- **Grimório:** quando só parte dos destinos grava, o que gravou fica selado e o próximo Selar grava só o que faltou, sem nota duplicada `-2`, nem em outro dia.
+- **Grimório:** o Salvar progresso cria a pasta que faltar e diz a causa quando não consegue ler ou gravar; a falha ao listar as ferramentas do ai-memory também aparece.
+- **Campanha:** aviso de subagente ou gatilho agendado não vira mais o objetivo da sessão.
+- **Compactar:** erro, compactação dispensada e "ocupado" agora têm avisos diferentes; uma ferramenta interrompida não trava mais o botão; a Mochila é relida depois de compactar.
+- **Compactar:** o cartão fica até o `/compact` ser enviado; se o salvar falha, mostra o motivo e oferece "Compactar assim mesmo"; sem campanha, um botão só.
+- **Rodapé:** os ícones da Mochila, da Mana e do Vigor ficam alinhados, e "Mochila" não é mais cortada.
+
 ## [0.6.0] - 2026-10-11
 
 O Clawd ganhou 19 classes, o painel virou um palco e o grimório passou a salvar o progresso para continuar depois, em qualquer agente. O mapa das classes está em [docs/classes.md](docs/classes.md).

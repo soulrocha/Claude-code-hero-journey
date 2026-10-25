@@ -106,8 +106,8 @@ export type Prefs = {
 /** O turno: se o Claude está trabalhando e quando terminou o último (o acampamento dorme depois de um tempo parado). */
 export type Turn = { busy: boolean; endedAt?: number }
 
-/** A ferramenta em curso;`file` é o arquivo que ela toca, se houver (o item na mão do pet). */
-export type Working = { tool: string; cls: Cls; summary: string; file?: string }
+/** A ferramenta em curso; `file` é o arquivo que ela toca, se houver (o item na mão do pet), e `at` quando começou. */
+export type Working = { tool: string; cls: Cls; summary: string; file?: string; at?: number }
 /** Os cartões acima do prompt: só o fim de marco e o de compactar (com o salvar progresso). */
 export type Card = 'marco' | 'compactar'
 export type View = 'main' | 'config' | 'memoria' | 'sobre' | 'grimorio' | 'boasVindas'

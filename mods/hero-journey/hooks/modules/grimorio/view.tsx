@@ -10,7 +10,7 @@ import { classColor, petArt, sparkleArt, TONE, toneOf } from '../../core/art'
 import { stageArt } from '../../core/cenarios'
 import type { MemoryToggle } from '../../core/prefs'
 import type { Ctx } from '../../core/ui'
-import { inputOf, pxOf, svg, title } from '../../core/ui'
+import { clawdArt, inputOf, pxOf, svg, title } from '../../core/ui'
 import { optionsFor } from './grimorio'
 import type { Dests } from './grimorio'
 
@@ -260,6 +260,18 @@ export const grimPage = (c: Ctx, d: GrimData, act: GrimActions): RenderElement =
         {act.haiku !== undefined && d.pending.length > 0 && <Button key="grim-haiku" plain dimColor label={c.t.haikuButton} onPress={act.haiku} />}
       </Box>
       {svg(c, stageArt('sabio', 'work', 'torre', pxOf(c), 170, `${c.t.className.sabio} · ${c.t.grimTitle}`, c.t.placeName), 'grim-stage')}
+      {!c.desktop && (
+        // Terminal: o Sábio, guardião do grimório, com o pergaminho; o título ao lado.
+        <Box key="grim-sage" flexDirection="row" columnGap={1} alignItems="flex-end">
+          {clawdArt(c, 'sabio', 'work', 'grim-sabio')}
+          <Box flexDirection="column">
+            <Text bold color={TONE[c.palette].gild}>
+              📖 {c.t.grimTitle}
+            </Text>
+            <Text dimColor>{c.t.className.sabio}</Text>
+          </Box>
+        </Box>
+      )}
       {d.pending.length > 0 ? (
         <Box key="grim-pending" flexDirection="column" rowGap={1} marginTop={1}>
           {title(c, c.t.toKeep, undefined, String(d.pending.length))}

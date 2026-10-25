@@ -10,7 +10,7 @@ import type { RenderElement } from 'claude-code'
 import type { Setup } from '../../../types'
 import { parade } from '../../core/art'
 import type { Ctx } from '../../core/ui'
-import { inputOf, pxOf, svg, title } from '../../core/ui'
+import { clawdArt, inputOf, pxOf, svg } from '../../core/ui'
 import type { Dests } from '../grimorio/grimorio'
 
 export type SetupActions = {
@@ -61,7 +61,17 @@ export const setupView = (c: Ctx, setup: Setup, langOption: string, paths: Dests
   )
   return (
     <Box flexDirection="column" gap={1}>
-      {c.desktop ? svg(c, parade(pxOf(c), 'Hero Journey', c.palette, c.t.setupTagline), 'setup-parade') : title(c, 'Hero Journey')}
+      {c.desktop ? (
+        svg(c, parade(pxOf(c), 'Hero Journey', c.palette, c.t.setupTagline), 'setup-parade')
+      ) : (
+        // Terminal: o acampamento em pixels abre a jornada, e o título embaixo.
+        <Box key="setup-head" flexDirection="column" alignItems="center">
+          {clawdArt(c, 'aprendiz', 'idle', 'setup-camp', c.width >= 48 ? 2 : 1, true)}
+          <Text bold color="claude">
+            HERO JOURNEY · {c.t.setupTagline}
+          </Text>
+        </Box>
+      )}
       <Text wrap="wrap">{c.t.setupWelcome}</Text>
       {line(c.t.language, [
         <Box key="setup-langs" flexDirection="row" columnGap={2} flexWrap="wrap">

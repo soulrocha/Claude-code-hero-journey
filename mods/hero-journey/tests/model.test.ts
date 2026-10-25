@@ -8,7 +8,8 @@ import { buildReport, briefingOf, newCampaign, onPrompt } from '../hooks/modules
 import { alertOf, bagOf, countdown, readingOf, warningsOf, windowOf } from '../hooks/modules/mochila/recursos'
 import { leadOf, receiptOf } from '../hooks/modules/recibo/recibo'
 import { layoutOf, NAP_MS, sceneOf, STAGE_MAX, STAGE_MIN, stepWindow } from '../hooks/modules/painel/palco'
-import { appendDecision, continuePrompt, cycleDest, detect, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
+import { DIFF_MAX_READ, DIFF_MAX_SHOWN, diffArgv, parseDiff, unquoteGitPath, untrackedDiff } from '../hooks/modules/painel/diff'
+import { appendDecision, continuePrompt, cycleDest, detect, isPending, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, withTimeout, writesFor } from '../hooks/modules/grimorio/grimorio'
 
 describe('marco e página do ai-memory', () => {
   test('marco é entrega de verdade: commit, push e PR; mandar arquivo ou e-mail não', () => {
@@ -424,7 +425,7 @@ describe('grimório', () => {
 describe('salvar progresso', () => {
   test('a tarefa mora no vault (repositório público) ou no projeto, com ID pelas iniciais', async () => {
     // No vault, o nome do projeto é o do ai-memory: /work/acme/api e /work/outra/api não se misturam.
-    expect(progressHome('C:/Projetos/claude-code-hero-journey', 'C:/Vault', 'soulrocha-claude-code-hero-journey')).toBe('C:/Vault/.tarefas/soulrocha-claude-code-hero-journey')
+    expect(progressHome('C:/work/claude-code-hero-journey', 'C:/Notas', 'soulrocha-claude-code-hero-journey')).toBe('C:/Notas/.tarefas/soulrocha-claude-code-hero-journey')
     expect(progressHome('/work/acme/api', '/vault', 'acme-api')).not.toBe(progressHome('/work/outra/api', '/vault', 'outra-api'))
     expect(progressHome('/repo/loja', '', 'loja')).toBe('/repo/loja/.hero/tarefas')
     expect(taskPrefix('claude-code-hero-journey')).toBe('CCHJ')
@@ -550,5 +551,187 @@ describe('palco', () => {
     const w = stepWindow(steps, 5)
     expect(w.hidden).toBe(3)
     expect(w.shown.map(s => s.name)).toEqual(['d', 'e', 'f', 'g'])
+  })
+})
+
+describe('diff do inventário (D2)', () => {
+  test('hunk padrão: separa @@, +, - e contexto, e ignora cabeçalho e No newline', async () => {
+    const raw = [
+      'diff --git a/src/app.ts b/src/app.ts',
+      'index 1111111..2222222 100644',
+      '--- a/src/app.ts',
+      '+++ b/src/app.ts',
+      '@@ -1,3 +1,3 @@',
+      ' const a = 1',
+      '-const b = 2',
+      '+const b = 3',
+      '@@ -10,1 +10,2 @@',
+      '- -- incremento',
+      '+ ++ cabecalho',
+      '+export { a, b }',
+      '\\ No newline at end of file',
+      '',
+    ].join('\n').replace('- -- incremento', '--- incremento').replace('+ ++ cabecalho', '+++ cabecalho')
+    const d = parseDiff(raw)
+    expect(d.binary).toBe(false)
+    expect(d.isNew).toBe(false)
+    expect(d.isDeleted).toBe(false)
+    expect(d.added).toBe(3)
+    expect(d.removed).toBe(2)
+    expect(d.more).toBe(0)
+    expect(d.lines.map(l => l.kind)).toEqual(['hunk', 'ctx', 'del', 'add', 'hunk', 'del', 'add', 'add'])
+    expect(diffArgv('src/app.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/app.ts'])
+    expect(diffArgv('src/app:name.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/app:name.ts'])
+    expect(diffArgv('src/*.ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'src/*.ts'])
+    expect(diffArgv('a[1].ts')).toEqual(['git', '--literal-pathspecs', 'diff', 'HEAD', '--', 'a[1].ts'])
+  })
+
+  test('linha de contexto vazia dentro de um hunk vira ctx, não meta', async () => {
+    const raw = [
+      'diff --git a/a.ts b/a.ts',
+      '--- a/a.ts',
+      '+++ b/a.ts',
+      '@@ -1,4 +1,4 @@',
+      ' linha 1',
+      '',
+      ' linha 3',
+      '+linha 4',
+    ].join('\n')
+    const d = parseDiff(raw)
+    expect(d.lines.map(l => l.kind)).toEqual(['hunk', 'ctx', 'ctx', 'ctx', 'add'])
+    expect(d.lines[2]).toEqual({ kind: 'ctx', text: '' })
+  })
+
+  test('arquivo novo (git diff e untrackedDiff) e arquivo excluído', async () => {
+    const created = [
+      'diff --git a/novo.ts b/novo.ts',
+      'new file mode 100644',
+      '--- /dev/null',
+      '+++ b/novo.ts',
+      '@@ -0,0 +1,2 @@',
+      '+const x = 1',
+      '+const y = 2',
+    ].join('\n')
+    const c = parseDiff(created)
+    expect(c.isNew).toBe(true)
+    expect(c.isDeleted).toBe(false)
+    expect(c.added).toBe(2)
+    expect(c.removed).toBe(0)
+
+    const u = untrackedDiff('linha 1\nlinha 2\n', 40)
+    expect(u.isNew).toBe(true)
+    expect(u.binary).toBe(false)
+    expect(u.added).toBe(2)
+    expect(u.lines).toEqual([
+      { kind: 'add', text: '+linha 1' },
+      { kind: 'add', text: '+linha 2' },
+    ])
+
+    const deleted = [
+      'diff --git a/velho.ts b/velho.ts',
+      'deleted file mode 100644',
+      '--- a/velho.ts',
+      '+++ /dev/null',
+      '@@ -1,2 +0,0 @@',
+      '-const x = 1',
+      '-const y = 2',
+    ].join('\n')
+    const del = parseDiff(deleted)
+    expect(del.isDeleted).toBe(true)
+    expect(del.isNew).toBe(false)
+    expect(del.removed).toBe(2)
+    expect(del.added).toBe(0)
+  })
+
+  test('arquivo binário no git diff e no untrackedDiff', async () => {
+    const bin1 = parseDiff('diff --git a/logo.png b/logo.png\nBinary files a/logo.png and b/logo.png differ\n')
+    expect(bin1.binary).toBe(true)
+    expect(bin1.lines).toEqual([])
+
+    const bin2 = parseDiff('diff --git a/a.bin b/a.bin\nGIT binary patch\nliteral 12\n')
+    expect(bin2.binary).toBe(true)
+    expect(bin2.lines).toEqual([])
+
+    const bin3 = untrackedDiff('PNG\0\x89')
+    expect(bin3.binary).toBe(true)
+    expect(bin3.isNew).toBe(true)
+    expect(bin3.lines).toEqual([])
+  })
+
+  test('arquivo renomeado simples e com escape octal UTF-8 do Git', async () => {
+    const ren = parseDiff('diff --git a/antigo.ts b/novo.ts\nsimilarity index 100%\nrename from antigo.ts\nrename to novo.ts\n')
+    expect(ren.renamedFrom).toBe('antigo.ts')
+    expect(ren.renamedTo).toBe('novo.ts')
+    expect(ren.lines).toEqual([])
+
+    const utf8Ren = parseDiff('diff --git "a/a\\303\\247\\303\\243o.ts" "b/cora\\303\\247\\303\\243o.ts"\nrename from "a\\303\\247\\303\\243o.ts"\nrename to "cora\\303\\247\\303\\243o.ts"\n')
+    expect(utf8Ren.renamedFrom).toBe('ação.ts')
+    expect(utf8Ren.renamedTo).toBe('coração.ts')
+    expect(unquoteGitPath('"pasta/miss\\303\\243o \\"1\\".md"')).toBe('pasta/missão "1".md')
+  })
+
+  test('UTF-8 com acento e normalização de CRLF', async () => {
+    const crlf = 'diff --git a/x.ts b/x.ts\r\n--- a/x.ts\r\n+++ b/x.ts\r\n@@ -1 +1 @@\r\n-// Sessão antiga\r\n+// Configuração de autenticação e sessão (épico)\r\n'
+    const d = parseDiff(crlf)
+    expect(d.lines.some(l => l.text.includes('\r'))).toBe(false)
+    expect(d.lines.find(l => l.kind === 'add')?.text).toBe('+// Configuração de autenticação e sessão (épico)')
+  })
+
+  test('truncamento: respeita max (40) e limite de leitura maxRead (200)', async () => {
+    const body55 = ['@@ -1,54 +1,54 @@', ...Array.from({ length: 54 }, (_, i) => `+linha ${i + 1}`)].join('\n')
+    const d55 = parseDiff(body55, DIFF_MAX_SHOWN, DIFF_MAX_READ)
+    expect(d55.lines.length).toBe(40)
+    expect(d55.more).toBe(15)
+    expect(d55.added).toBe(54)
+
+    const body260 = ['@@ -1,259 +1,259 @@', ...Array.from({ length: 259 }, (_, i) => `+linha ${i + 1}`)].join('\n')
+    const d260 = parseDiff(body260, DIFF_MAX_SHOWN, DIFF_MAX_READ)
+    expect(d260.lines.length).toBe(40)
+    expect(d260.more).toBe(220)
+    expect(d260.added).toBe(259)
+    expect(d260.approximate).toBe(false)
+
+    const u60 = untrackedDiff(Array.from({ length: 60 }, (_, i) => `l${i}`).join('\n'), 40, 200)
+    expect(u60.lines.length).toBe(40)
+    expect(u60.more).toBe(20)
+
+    const bodyCortado = ['@@ -1,500 +1,500 @@', ...Array.from({ length: 200 }, (_, i) => `+linha ${i + 1}`)].join('\n')
+    const dCortado = parseDiff(bodyCortado, DIFF_MAX_SHOWN, DIFF_MAX_READ, true)
+    expect(dCortado.approximate).toBe(true)
+    expect(dCortado.added).toBe(200)
+    expect(dCortado.more).toBe(161)
+  })
+})
+
+describe('grimório: timeout, selo parcial e caminhos Windows (B2a, B2b e B2c)', () => {
+  test('withTimeout rejeita promessa pendurada e isPending/writesFor pulam destinos já selados', async () => {
+    expect(await withTimeout(Promise.resolve('ok'), 100, 'mcp')).toBe('ok')
+    let err = ''
+    try {
+      await withTimeout(new Promise<string>(() => {}), 25, 'memory_write_page')
+    } catch (e) {
+      err = e instanceof Error ? e.message : String(e)
+    }
+    expect(err).toContain('memory_write_page: timeout')
+
+    const partial: Inscription = {
+      id: 'i1',
+      kind: 'decisao',
+      text: 'Decidimos paginar no servidor.',
+      source: 'resposta',
+      destinations: ['vaultDecisao', 'aiMemory'],
+      sealed: ['vaultDecisao'],
+    }
+    expect(isPending(partial)).toBe(true)
+    expect(pending([partial]).length).toBe(1)
+    const writes = writesFor(partial, { repo: '/repo', vault: '/vault', memory: { server: 'ai-memory' } }, Date.UTC(2026, 9, 11, 12))
+    expect(writes.map(w => w.dest)).toEqual(['aiMemory'])
+
+    const full: Inscription = { ...partial, sealed: ['vaultDecisao', 'aiMemory'] }
+    expect(isPending(full)).toBe(false)
+    expect(pending([full]).length).toBe(0)
+
+    expect(progressHome('C:\\work\\meu-app', '', 'meu-app')).toBe('C:\\work\\meu-app\\.hero\\tarefas')
+    expect(progressHome('C:\\work\\meu-app', 'C:\\Notas', 'meu-app')).toBe('C:\\Notas\\.tarefas\\meu-app')
   })
 })
