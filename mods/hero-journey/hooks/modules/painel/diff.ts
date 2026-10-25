@@ -5,7 +5,10 @@ export const DIFF_MAX_SHOWN = 40
 export const DIFF_MAX_READ = 200
 
 /** Comando git por argv, sem shell, para ler o diff de um item do inventário. */
-export const diffArgv = (path: string) => ['git', 'diff', 'HEAD', '--', path] as const
+export const diffArgv = (path: string) =>
+  path.includes(':') || path.includes('*')
+    ? (['git', '--literal-pathspecs', 'diff', 'HEAD', '--', path] as const)
+    : (['git', 'diff', 'HEAD', '--', path] as const)
 
 export type DiffKind = 'add' | 'del' | 'hunk' | 'ctx' | 'meta'
 
@@ -23,8 +26,10 @@ export type ParsedDiff = {
   isDeleted: boolean
   renamedFrom?: string
   renamedTo?: string
-  /** Quantas linhas lidas (até DIFF_MAX_READ) ficaram de fora por passar de `max`. */
+  /** Quantas linhas não mostradas ficaram de fora por passar de `max`. */
   more: number
+  /** Indica se os totais são aproximados (ex.: quando a entrada já veio truncada pelo chamador). */
+  approximate?: boolean
 }
 
 /** Decodifica caminhos que o Git coloca entre aspas com escapes octais UTF-8 (`\303\247`). */
@@ -66,7 +71,16 @@ const HEADER_PREFIXES = [
   'copy to ',
 ]
 
-export function parseDiff(raw: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_READ): ParsedDiff {
+/**
+ * Analisa a saída de `git diff` de um arquivo.
+ *
+ * `added` e `removed` contam todas as adições e remoções do texto recebido.
+ * `more` reflete o total real de linhas de diff não mostradas (`total - lines.length`).
+ * Se o texto recebido já foi cortado (por exemplo, em `DIFF_MAX_READ` pelo chamador),
+ * passe `approximate = true`; a função computa os totais reais sobre o que recebeu,
+ * marcando o resultado como aproximado sem inventar números.
+ */
+export function parseDiff(raw: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_READ, approximate = false): ParsedDiff {
   const base: ParsedDiff = {
     lines: [],
     added: 0,
@@ -75,6 +89,7 @@ export function parseDiff(raw: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_
     isNew: false,
     isDeleted: false,
     more: 0,
+    approximate: Boolean(approximate),
   }
   if (raw.includes('\0')) return { ...base, binary: true }
 
@@ -85,6 +100,7 @@ export function parseDiff(raw: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_
   if (allLines[allLines.length - 1] === '') allLines.pop()
 
   const body: DiffLine[] = []
+  let totalDiffLines = 0
   let inHunk = false
 
   for (const line of allLines) {
@@ -123,37 +139,48 @@ export function parseDiff(raw: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_
 
     if (line.startsWith('@@')) {
       inHunk = true
+      totalDiffLines += 1
       if (body.length < maxRead) body.push({ kind: 'hunk', text: line })
       continue
     }
     if (line.startsWith('\\ No newline at end of file')) {
       continue
     }
-    if (body.length >= maxRead) continue
 
     if (line.startsWith('+')) {
       inHunk = true
       base.added += 1
-      body.push({ kind: 'add', text: line })
+      totalDiffLines += 1
+      if (body.length < maxRead) body.push({ kind: 'add', text: line })
     } else if (line.startsWith('-')) {
       inHunk = true
       base.removed += 1
-      body.push({ kind: 'del', text: line })
-    } else if (line.startsWith(' ')) {
+      totalDiffLines += 1
+      if (body.length < maxRead) body.push({ kind: 'del', text: line })
+    } else if (line.startsWith(' ') || (inHunk && line === '')) {
       inHunk = true
-      body.push({ kind: 'ctx', text: line })
+      totalDiffLines += 1
+      if (body.length < maxRead) body.push({ kind: 'ctx', text: line })
     } else if (inHunk) {
-      body.push({ kind: 'meta', text: line })
+      totalDiffLines += 1
+      if (body.length < maxRead) body.push({ kind: 'meta', text: line })
     }
   }
 
   const limit = Math.max(0, max)
   base.lines = body.slice(0, limit)
-  base.more = Math.max(0, body.length - base.lines.length)
+  base.more = Math.max(0, totalDiffLines - base.lines.length)
   return base
 }
 
-export function untrackedDiff(content: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_READ): ParsedDiff {
+/**
+ * Converte o conteúdo de um arquivo não rastreado em um diff sintético de adição.
+ *
+ * `added` reflete o total de linhas do conteúdo recebido.
+ * `more` reflete quantas linhas do arquivo não estão em `lines`.
+ * Se a entrada já veio cortada externamente, passe `approximate = true`.
+ */
+export function untrackedDiff(content: string, max = DIFF_MAX_SHOWN, maxRead = DIFF_MAX_READ, approximate = false): ParsedDiff {
   const base: ParsedDiff = {
     lines: [],
     added: 0,
@@ -162,6 +189,7 @@ export function untrackedDiff(content: string, max = DIFF_MAX_SHOWN, maxRead = D
     isNew: true,
     isDeleted: false,
     more: 0,
+    approximate: Boolean(approximate),
   }
   if (content.includes('\0')) return { ...base, binary: true }
 
@@ -171,8 +199,8 @@ export function untrackedDiff(content: string, max = DIFF_MAX_SHOWN, maxRead = D
   const rawLines = (norm.endsWith('\n') ? norm.slice(0, -1) : norm).split('\n')
   const capped = rawLines.slice(0, Math.max(0, maxRead)).map((l): DiffLine => ({ kind: 'add', text: `+${l}` }))
   const limit = Math.max(0, max)
-  base.added = capped.length
+  base.added = rawLines.length
   base.lines = capped.slice(0, limit)
-  base.more = Math.max(0, capped.length - base.lines.length)
+  base.more = Math.max(0, rawLines.length - base.lines.length)
   return base
 }
