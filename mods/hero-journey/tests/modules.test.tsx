@@ -848,3 +848,21 @@ test('grimório (R2): Selar com o ai-memory pendurado falha no prazo com aviso; 
   expect(ok).toBe(1)
   expect(toasts.filter(t => t.includes('1 inscrição selada')).length).toBe(1)
 })
+
+test('grimório (R3): tool.list que falha não toca a cada desenho; na ação da pessoa avisa o motivo', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+  const files: Record<string, string> = {}
+  const toasts: string[] = []
+  grimEngine(on, files, toasts)
+  on('tool.list', () => ({ deny: 'MCP fora do ar' }) as never)
+  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
+  await openGrimoire($)
+  const page = await $.ui.mount(pane)
+  expect(await seen(page, /paginam sempre no servidor/)).toBe(true)
+  // Só desenhar não avisa.
+  expect(toasts.filter(t => t.includes('MCP fora do ar'))).toEqual([])
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
+  expect(toasts.filter(t => t.includes('Não deu para ver se o ai-memory está conectado') && t.includes('MCP fora do ar')).length).toBe(1)
+  // O vault continua valendo: a nota saiu mesmo sem o ai-memory.
+  expect(Object.keys(files).some(k => k.startsWith('/vault/Inbox/'))).toBe(true)
+})

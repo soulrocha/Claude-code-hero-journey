@@ -283,9 +283,16 @@ async function compactNow($: EngineInterface) {
   }
 }
 
-/** Para onde o grimório pode gravar agora: a pasta do vault e o ai-memory, se o MCP dele estiver conectado. */
-async function grimDests($: EngineInterface): Promise<Dests> {
-  const tools = await withTimeout($.tool.list(), SEAL_TIMEOUT_MS, 'tool.list').catch(() => [])
+/**
+ * Para onde o grimório pode gravar agora: a pasta do vault e o ai-memory, se o MCP dele estiver conectado.
+ * Se a lista de ferramentas falhar, o ai-memory fica fora; `warn` (só nas ações da pessoa, nunca no
+ * desenho) diz o motivo num toast em vez de calar.
+ */
+async function grimDests($: EngineInterface, warn = false): Promise<Dests> {
+  const tools = await withTimeout($.tool.list(), SEAL_TIMEOUT_MS, 'tool.list').catch(async err => {
+    if (warn) $.ui.toast(DICT[await langNow($)].toolsFailed(err instanceof Error ? err.message : String(err)))
+    return []
+  })
   return { vault: paths.vault, inbox: paths.inbox, memory: memoryTool(tools) }
 }
 
@@ -423,7 +430,7 @@ async function sealRun($: EngineInterface, run: { aborted: boolean }) {
     return
   }
   const repo = await $.session.cwd()
-  const found = await grimDests($)
+  const found = await grimDests($, true)
   // O vault e a pasta de entrada podem vir do /config sem passar pelos Primeiros passos:
   // confere antes de gravar. Uma pasta de entrada que sai do vault desliga o destino.
   const inbox = found.inbox ?? 'Inbox'
@@ -491,7 +498,7 @@ async function undoSeal($: EngineInterface, id: string) {
   const t = DICT[await langNow($)]
   const i = (await read($, inscriptions)).find(x => x.id === id)
   if (i?.written === undefined) return
-  const memory = (await grimDests($)).memory
+  const memory = (await grimDests($, true)).memory
   try {
     for (const w of i.written) {
       if (w.mode === 'linha' && w.line !== undefined) {
@@ -787,7 +794,7 @@ async function chooseHome($: EngineInterface, home: 'projeto' | 'vault' | 'auto'
 /** O ⚙ Memória → Testar: o ai-memory responde ao memory_status? */
 async function testMemory($: EngineInterface) {
   const t = DICT[await langNow($)]
-  const memory = (await grimDests($)).memory
+  const memory = (await grimDests($, true)).memory
   if (memory === undefined) return
   try {
     const r = await withTimeout($.mcp.call(memory.server, 'memory_status', {}), SEAL_TIMEOUT_MS, 'memory_status')
@@ -1141,7 +1148,7 @@ async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<R
         back: toMain,
         config: () => update($, view, () => 'memoria' as const),
         cycle: async id => {
-          const d = await grimDests($)
+          const d = await grimDests($, true)
           await update($, inscriptions, list => cycleDest(list, id, d))
         },
         seal: () => seal($),
@@ -1756,7 +1763,7 @@ export const register: Register = (on, options) => {
       const waiting = pending(await read($, inscriptions)).filter(i => kindOn(i.kind, p.memory))
       cardTree = marcoCard(c, marcoInfo.name, marcoInfo.sub, waiting, await grimDests($), {
         cycle: async id => {
-          const d = await grimDests($)
+          const d = await grimDests($, true)
           await update($, inscriptions, list => cycleDest(list, id, d))
         },
         seal: () => seal($),
