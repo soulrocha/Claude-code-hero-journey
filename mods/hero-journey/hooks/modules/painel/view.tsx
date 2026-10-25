@@ -364,24 +364,24 @@ export const footer = (c: Ctx, d: Pick<PaneData, 'resources' | 'now' | 'prefs' |
   const rows = resourceData(c, d.resources, d.now)
   const on = (id: ModuleId) => isOn(d.prefs, id)
   const alerted = (r: ResRow) => r.color === toneOf(c.palette).bad || r.color === toneOf(c.palette).warn
-  // O rótulo (11 colunas), a porcentagem (5) e a nota (9), com 3 de espaço entre eles: a barra fica com o resto.
-  const barW = Math.max(60, pxOf(c) - Math.round(28 * 7.6))
+  // O rótulo (12 colunas), a porcentagem (5) e a nota (9), com 3 de espaço entre eles: a barra fica com o resto.
+  const barW = Math.max(60, pxOf(c) - Math.round(29 * 7.6))
   return (
     <Box key="footer" flexDirection="column" marginTop={1}>
       {c.desktop ? (
         rows.map(r => (
           <Box key={`r-${r.key}`} flexDirection="row" columnGap={1} alignItems="center">
-            <Box width={11} flexShrink={0}>
+            <Box width={12} flexShrink={0} flexDirection="row" columnGap={1} alignItems="center">
+              {/* O ícone fica fora do botão: o recuo do botão nativo desalinhava a Mochila das outras. */}
+              <Text dimColor={!alerted(r)}>{RES_ICON[r.key] ?? ''}</Text>
               {r.key === 'mochila' && on('mochila') ? (
                 // A Mochila é o botão de compactar: o clique leva ao cartão (salvar o progresso e compactar).
-                <Button key="compact" plain dimColor={!alerted(r)} label={`${RES_ICON[r.key]} ${r.label}`} onPress={act.compact}>
-                  <Text color={alerted(r) ? r.color : undefined}>
-                    {RES_ICON[r.key]} {r.label}
-                  </Text>
+                <Button key="compact" plain dimColor={!alerted(r)} label={r.label} onPress={act.compact}>
+                  <Text color={alerted(r) ? r.color : undefined}>{r.label}</Text>
                 </Button>
               ) : (
                 <Text dimColor={!alerted(r)} color={alerted(r) ? r.color : undefined}>
-                  {RES_ICON[r.key] ?? ''} {r.label}
+                  {r.label}
                 </Text>
               )}
             </Box>
