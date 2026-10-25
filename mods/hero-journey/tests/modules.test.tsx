@@ -806,3 +806,45 @@ test('campanha (R1): turno de gatilho ou de subagente sem campanha não cria uma
   await $.turn.start({ text: 'Implementar o login', turnId: 'p1', origin: { kind: 'user' } } as never)
   expect((kept.get('campanha:sessao-r1') as { objective: string }).objective).toBe('Implementar o login')
 })
+
+test('grimório (R2): Selar com o ai-memory pendurado falha no prazo com aviso; o seguinte grava uma vez só', { options: { language: 'pt-BR', vaultPath: '/vault' } }, async ($, on) => {
+  const files: Record<string, string> = {}
+  const toasts: string[] = []
+  grimEngine(on, files, toasts)
+  // O prazo do Selar dorme no relógio do motor; o teste o acorda sem esperar os 45 s.
+  let expire = () => {}
+  on('clock.sleep', (() =>
+    new Promise(resolve => {
+      expire = () => resolve({ value: undefined })
+    })) as never)
+  on('tool.list', () => ({ value: [{ name: 'mcp__ai-memory__memory_write_page', description: '', mcp: true }] }) as never)
+  let hang = true
+  let ok = 0
+  on('mcp.call', ((_: unknown, e: { tool: string }) => {
+    if (e.tool !== 'memory_write_page') return { value: { content: [{ type: 'text', text: '{}' }], isError: false } }
+    if (hang) return new Promise(() => {})
+    ok += 1
+    return { value: { content: [{ type: 'text', text: '{}' }], isError: false } }
+  }) as never)
+  await $.turn.complete(answerTurn('Decidimos que listas grandes paginam sempre no servidor.'))
+  await openGrimoire($)
+  const page = await $.ui.mount(pane)
+  await page.press({ key: `dest-${DECISION_ID}` })
+  await page.press({ key: `dest-${DECISION_ID}` })
+
+  // Com o primeiro pendurado, o segundo clique só avisa; o prazo (relógio simulado) encerra o primeiro com falha.
+  const first = page.press({ key: 'grim-seal' })
+  await page.press({ key: 'grim-seal' })
+  expect(toasts.some(t => t.includes('O grimório já está gravando'))).toBe(true)
+  expire()
+  await first
+  expect(toasts.some(t => t.includes('Um destino falhou') && t.includes('timeout'))).toBe(true)
+  expect(ok).toBe(0)
+
+  // A trava foi solta pela execução que a tinha: o Selar seguinte grava, uma vez.
+  hang = false
+  await page.press({ key: 'grim-seal' })
+  await page.unmount()
+  expect(ok).toBe(1)
+  expect(toasts.filter(t => t.includes('1 inscrição selada')).length).toBe(1)
+})

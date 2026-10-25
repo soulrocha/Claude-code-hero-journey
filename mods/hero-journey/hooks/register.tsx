@@ -99,7 +99,9 @@ let anim: { cancel: () => void } | undefined
 /** O spinner do terminal é do mod: com o turno rodando, o relógio o redesenha a cada segundo. */
 let spinOnTerminal = false
 // Um Selar por vez: o segundo clique avisa que está gravando; destrava após 60s se algo pendurou.
+// O Selar inteiro tem prazo menor que a trava, para nunca haver duas execuções ao mesmo tempo.
 const SEAL_TIMEOUT_MS = 15_000
+const SEAL_TOTAL_MS = 45_000
 const SEAL_LOCK_MS = 60_000
 let sealingAt = 0
 /** Só mensagem da pessoa abre campanha: subagente, gatilho agendado ou outra sessão não. */
@@ -392,62 +394,82 @@ async function seal($: EngineInterface) {
     return
   }
   sealingAt = startedAt
+  const run = { aborted: false }
   try {
-    const t = DICT[await langNow($)]
-    // Inscrição sem destino fica onde está, sem aviso de falha: falta a pessoa dizer onde guardar.
-    const list = pending(await read($, inscriptions)).filter(i => i.destinations.length > 0)
-    if (list.length === 0) {
-      if (pending(await read($, inscriptions)).length > 0) $.ui.toast(t.grimNoneMarked)
-      return
-    }
-    const repo = await $.session.cwd()
-    const found = await grimDests($)
-    // O vault e a pasta de entrada podem vir do /config sem passar pelos Primeiros passos:
-    // confere antes de gravar. Uma pasta de entrada que sai do vault desliga o destino.
-    const inbox = found.inbox ?? 'Inbox'
-    let vault = ''
-    if (found.vault !== '' && !isSubfolder(inbox)) $.ui.toast(t.inboxInvalid(inbox))
-    else if (found.vault !== '') vault = (await checkedFolder($, found.vault)) ?? ''
-    const dests = { ...found, vault }
-    const used = new Set<string>()
-    const missed: string[] = []
-    const sealed: Record<string, { ok: Inscription['destinations']; written: Written[]; full: boolean }> = {}
-    for (const i of list) {
-      const writes = writesFor(i, { repo, ...dests }, Date.now())
-      const rem = i.destinations.filter(d => !(i.sealed ?? []).includes(d))
-      // A regra de privacidade barrou (o texto cita o vault ou um caminho pessoal): avisa, e a inscrição fica.
-      if (writes.length === 0 && rem.length > 0 && rem.every(d => available(d, dests))) $.ui.toast(t.privacyBlocked)
-      const written: Written[] = []
-      const ok: Inscription['destinations'] = []
-      for (const w of writes) {
-        try {
-          const at = await writeOne($, w, dests.memory, used, t.rulesHeading)
-          ok.push(w.dest)
-          if (at !== undefined) written.push(writtenOf(w, at))
-        } catch (err) {
-          missed.push(`${t.dest[w.dest]}: ${err instanceof Error ? err.message : String(err)}`)
-        }
+    // O prazo corre no relógio do motor ($.clock), que o teste avança sem esperar.
+    const job = sealRun($, run)
+    job.catch(() => undefined)
+    const late = Symbol('prazo')
+    const deadline = $.clock.sleep(SEAL_TOTAL_MS).then(
+      () => late,
+      () => new Promise<never>(() => {}),
+    )
+    if ((await Promise.race([job, deadline])) === late) throw new Error(`seal: timeout (${SEAL_TOTAL_MS / 1000}s)`)
+  } catch (err) {
+    run.aborted = true
+    $.ui.toast(DICT[await langNow($)].notSealed(0, err instanceof Error ? err.message : String(err)))
+  } finally {
+    // Só solta a trava se ela ainda é desta execução.
+    if (sealingAt === startedAt) sealingAt = 0
+  }
+}
+
+async function sealRun($: EngineInterface, run: { aborted: boolean }) {
+  const t = DICT[await langNow($)]
+  // Inscrição sem destino fica onde está, sem aviso de falha: falta a pessoa dizer onde guardar.
+  const list = pending(await read($, inscriptions)).filter(i => i.destinations.length > 0)
+  if (list.length === 0) {
+    if (pending(await read($, inscriptions)).length > 0) $.ui.toast(t.grimNoneMarked)
+    return
+  }
+  const repo = await $.session.cwd()
+  const found = await grimDests($)
+  // O vault e a pasta de entrada podem vir do /config sem passar pelos Primeiros passos:
+  // confere antes de gravar. Uma pasta de entrada que sai do vault desliga o destino.
+  const inbox = found.inbox ?? 'Inbox'
+  let vault = ''
+  if (found.vault !== '' && !isSubfolder(inbox)) $.ui.toast(t.inboxInvalid(inbox))
+  else if (found.vault !== '') vault = (await checkedFolder($, found.vault)) ?? ''
+  const dests = { ...found, vault }
+  const used = new Set<string>()
+  const missed: string[] = []
+  const sealed: Record<string, { ok: Inscription['destinations']; written: Written[]; full: boolean }> = {}
+  for (const i of list) {
+    const writes = writesFor(i, { repo, ...dests }, Date.now())
+    const rem = i.destinations.filter(d => !(i.sealed ?? []).includes(d))
+    // A regra de privacidade barrou (o texto cita o vault ou um caminho pessoal): avisa, e a inscrição fica.
+    if (writes.length === 0 && rem.length > 0 && rem.every(d => available(d, dests))) $.ui.toast(t.privacyBlocked)
+    const written: Written[] = []
+    const ok: Inscription['destinations'] = []
+    for (const w of writes) {
+      try {
+        if (run.aborted) throw new Error('prazo esgotado')
+        const at = await writeOne($, w, dests.memory, used, t.rulesHeading)
+        ok.push(w.dest)
+        if (at !== undefined) written.push(writtenOf(w, at))
+      } catch (err) {
+        missed.push(`${t.dest[w.dest]}: ${err instanceof Error ? err.message : String(err)}`)
       }
-      if (ok.length > 0) sealed[i.id] = { ok, written, full: ok.length === writes.length && writes.length === rem.length }
     }
-    const done = Object.values(sealed).filter(s => s.full).length
+    if (ok.length > 0) sealed[i.id] = { ok, written, full: ok.length === writes.length && writes.length === rem.length }
+  }
+  const done = Object.values(sealed).filter(s => s.full).length
+  if (!run.aborted) {
     if (done > 0) $.ui.toast(t.sealed(done))
     if (done < list.length || missed.length > 0) $.ui.toast(t.notSealed(list.length - done, missed.join('; ')))
-    await update($, inscriptions, all =>
-      all.map((i): Inscription => {
-        const hit = sealed[i.id]
-        if (hit === undefined) return i
-        return {
-          ...i,
-          sealed: [...new Set([...(i.sealed ?? []), ...hit.ok])],
-          written: [...(i.written ?? []), ...hit.written],
-        }
-      }),
-    )
-    if (pending(await read($, inscriptions)).length === 0) await dropCard($, 'marco')
-  } finally {
-    sealingAt = 0
   }
+  await update($, inscriptions, all =>
+    all.map((i): Inscription => {
+      const hit = sealed[i.id]
+      if (hit === undefined) return i
+      return {
+        ...i,
+        sealed: [...new Set([...(i.sealed ?? []), ...hit.ok])],
+        written: [...(i.written ?? []), ...hit.written],
+      }
+    }),
+  )
+  if (pending(await read($, inscriptions)).length === 0) await dropCard($, 'marco')
 }
 
 async function discard($: EngineInterface) {
