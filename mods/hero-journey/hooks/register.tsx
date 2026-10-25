@@ -102,6 +102,12 @@ let spinOnTerminal = false
 const SEAL_TIMEOUT_MS = 15_000
 const SEAL_LOCK_MS = 60_000
 let sealingAt = 0
+/** Só mensagem da pessoa abre campanha: subagente, gatilho agendado ou outra sessão não. */
+const isFromPerson = (e: unknown): boolean => {
+  const { origin, agentId } = e as { origin?: { kind?: string }; agentId?: string }
+  const kind = origin?.kind
+  return agentId === undefined && (kind === undefined || kind === 'composer' || kind === 'bridge' || kind === 'user')
+}
 // O "Verificar" que a pessoa digita no cartão de compactar, até salvar o progresso.
 let verifyDraft = ''
 // Os avisos do Sábio que a pessoa dispensou: o do turno (pelo turnId) e o de antes de dormir (pela hora).
@@ -1375,8 +1381,7 @@ export const register: Register = (on, options) => {
   on('prompt.submit', async ($, e, next) => {
     const text = e.text.trim()
     // Aviso de subagente, gatilho agendado ou outra sessão não abre capítulo nem vira objetivo.
-    const kind = (e as { origin?: { kind?: string } }).origin?.kind
-    const fromPerson = kind === undefined || kind === 'composer' || kind === 'bridge' || kind === 'user'
+    const fromPerson = isFromPerson(e)
     if (fromPerson && /^\/compact(\s|$)/i.test(text)) await dropCard($, 'compactar')
     if (fromPerson && text !== '' && !text.startsWith('/')) {
       if (langFromPrompt) {
@@ -1397,7 +1402,7 @@ export const register: Register = (on, options) => {
     if (turnPrompts.size > 50) turnPrompts.delete(turnPrompts.keys().next().value ?? '')
     let c = await read($, campaign)
     const promptText = e.text.trim()
-    if (c === null && promptText !== '' && !promptText.startsWith('/')) {
+    if (c === null && isFromPerson(e) && promptText !== '' && !promptText.startsWith('/')) {
       c = onPrompt(null, await $.session.id(), promptText, Date.now())
       await saveCampaign($, c)
     }

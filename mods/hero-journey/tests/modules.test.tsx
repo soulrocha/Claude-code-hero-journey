@@ -786,3 +786,23 @@ test('mochila (B3a, B3b e B3c): sem botão duplicado, limpa working órfão, avi
   expect(await idleCard.find({ key: 'card-now' })).toBeUndefined()
   await idleCard.unmount()
 })
+
+test('campanha (R1): turno de gatilho ou de subagente sem campanha não cria uma; turno da pessoa cria', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const kept = new Map<string, unknown>()
+  on('store.get', ($$, e) => ({ value: kept.get((e as { key: string }).key) }) as never)
+  on('store.set', ($$, e) => {
+    kept.set((e as { key: string }).key, (e as { value: unknown }).value)
+    return { value: undefined } as never
+  })
+  on('store.keys', () => ({ value: [...kept.keys()] }) as never)
+  on('session.usage', usage)
+  on('session.id', () => ({ value: 'sessao-r1' }) as never)
+  on('turn.start', ($$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
+
+  await $.turn.start({ text: 'Rodar a rotina agendada das 9h', turnId: 'g1', origin: { kind: 'schedule' } } as never)
+  await $.turn.start({ text: 'Tarefa do subagente', turnId: 'g2', agentId: 'ag-1' } as never)
+  expect(kept.has('campanha:sessao-r1')).toBe(false)
+
+  await $.turn.start({ text: 'Implementar o login', turnId: 'p1', origin: { kind: 'user' } } as never)
+  expect((kept.get('campanha:sessao-r1') as { objective: string }).objective).toBe('Implementar o login')
+})
