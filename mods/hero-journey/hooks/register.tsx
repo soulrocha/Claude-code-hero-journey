@@ -36,7 +36,7 @@ import { compactCard } from './modules/mochila/view'
 import { EMPTY_INVENTORY, LOG_ARGV, NUMSTAT_ARGV, parseInventory, parseLog, questsFromTodos, STATUS_ARGV, upsertMember } from './modules/painel/painel'
 import { setupView } from './modules/painel/primeiros-passos'
 import { aboutView, configView, footer, mainView, memoryView, stageLook } from './modules/painel/view'
-import { DIFF_MAX_READ, DIFF_MAX_SHOWN, diffArgv, parseDiff, untrackedDiff } from './modules/painel/diff'
+import { DIFF_MAX_BYTES, DIFF_MAX_READ, DIFF_MAX_SHOWN, diffArgv, parseDiff, untrackedDiff } from './modules/painel/diff'
 import type { ParsedDiff } from './modules/painel/diff'
 import { diffView } from './modules/painel/diff-view'
 import { rasterOfPixels } from './core/raster'
@@ -181,6 +181,11 @@ async function refreshInventory($: EngineInterface) {
     const log = await $.process.run([...LOG_ARGV], { timeoutMs: 5000 }).catch(() => undefined)
     const inv = parseInventory(status.stdout, numstat.exitCode === 0 ? numstat.stdout : '', isGuarded)
     await update($, inventory, () => ({ ...inv, recent: log?.exitCode === 0 ? parseLog(log.stdout) : [] }))
+    // O diff aberto fica velho quando o inventário muda: relê no próximo desenho, ou volta se o item saiu.
+    diffCached = undefined
+    if (diffPath !== undefined && !inv.items.some(i => i.path === diffPath) && (await read($, view)) === 'diff') {
+      await update($, view, () => 'main' as const)
+    }
   } catch {
     await update($, inventory, () => EMPTY_INVENTORY)
   }
@@ -188,11 +193,13 @@ async function refreshInventory($: EngineInterface) {
 
 async function loadDiff($: EngineInterface, item: Item): Promise<ParsedDiff | string> {
   const t = DICT[await langNow($)]
+  // O git status dá o caminho a partir da raiz do repositório, não da pasta da sessão.
+  const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 }).catch(() => undefined)
+  const root = top?.exitCode === 0 && top.stdout.trim() !== '' ? top.stdout.trim() : undefined
+  const full = root === undefined ? item.path : joinPath(root, item.path)
   if (item.code === '??') {
-    const isDir =
-      item.path.endsWith('/') ||
-      item.path.endsWith('\\') ||
-      (await $.fs.stat(item.path).then(s => s.kind === 'dir').catch(() => false))
+    const stat = await $.fs.stat(full).catch(() => undefined)
+    const isDir = item.path.endsWith('/') || item.path.endsWith('\\') || stat?.kind === 'dir'
     if (isDir) {
       return {
         lines: [],
@@ -205,8 +212,10 @@ async function loadDiff($: EngineInterface, item: Item): Promise<ParsedDiff | st
         directory: true,
       }
     }
+    const size = (stat as { size?: number } | undefined)?.size
+    if (size !== undefined && size > DIFF_MAX_BYTES) return t.diffTooBig(Math.round(size / 1024))
     try {
-      const content = await $.fs.read(item.path)
+      const content = await $.fs.read(full)
       return untrackedDiff(content, DIFF_MAX_SHOWN, DIFF_MAX_READ)
     } catch (err) {
       return t.diffReadError(err instanceof Error ? err.message : String(err))
@@ -214,7 +223,7 @@ async function loadDiff($: EngineInterface, item: Item): Promise<ParsedDiff | st
   }
 
   try {
-    const res = await $.process.run([...diffArgv(item.path)], { timeoutMs: 5000 })
+    const res = await $.process.run([...diffArgv(item.path, root)], { timeoutMs: 5000 })
     if (res.exitCode !== 0) {
       return t.diffReadError(res.stderr.trim() || `exit ${res.exitCode}`)
     }

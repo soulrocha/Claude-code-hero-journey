@@ -4,7 +4,7 @@
 
 Uma HUD de RPG aconchegante para o Claude Code desktop, com os caranguejos Clawd multiclasse. A saída do Claude não muda: a HUD só acrescenta os mascotes, o painel, a faixa e os cartões.
 
-> **Beta.** Funciona no app desktop e no Claude Code CLI (terminal). No terminal, os Clawds são pixel art própria e cada classe tem um ícone; veja [No terminal](#no-terminal).
+> **1.0, estável.** Funciona no app desktop e no Claude Code CLI (terminal). No terminal, os Clawds são pixel art própria e cada classe tem um ícone; veja [No terminal](#no-terminal).
 
 ## Instalar
 
@@ -192,7 +192,7 @@ Estrutura:
 | `hooks/register.tsx` | Liga os módulos aos eventos. Todo o código que usa `$` fica aqui: o motor recusa o `$` passado para uma função importada (conferido no 2.1.295). |
 | `hooks/core/` | A arte em Svg (os Clawds das 19 classes em `sprites.ts`, os cenários do palco em `cenarios.ts` e o resto em `art.ts`), textos pt/en, classes, preferências, pastas do sistema e o que todas as telas usam |
 | `hooks/modules/<módulo>/` | A lógica (`<módulo>.ts`, pura) e a tela (`view.tsx`) de cada módulo |
-| `tests/` | 142 testes no motor, em desktop e terminal, incluindo as regressões dos QAs e da revisão do PR |
+| `tests/` | 145 testes no motor, em desktop e terminal, incluindo as regressões dos QAs e da revisão do PR |
 
 ---
 
@@ -200,7 +200,7 @@ Estrutura:
 
 A cozy RPG HUD for the Claude Code desktop app, with the multiclass Clawd crabs. Claude's output stays the same.
 
-> **Beta.** Works in the desktop app and in the Claude Code CLI (terminal). In the terminal the Clawds are purpose-made pixel art (no background, animated stage in the docked pane), each class has an icon in the band, logbook, spinner and receipt, and the guard shows 🐉 within the 12 rows the engine allows around the dialog.
+> **1.0, stable.** Works in the desktop app and in the Claude Code CLI (terminal). In the terminal the Clawds are purpose-made pixel art (no background, animated stage in the docked pane), each class has an icon in the band, logbook, spinner and receipt, and the guard shows 🐉 within the 12 rows the engine allows around the dialog.
 
 **Install** (tested on engine 2.1.295): `/plugin install hero-journey --marketplace soulrocha/Claude-code-hero-journey`, then type `/hero`.
 

@@ -2,6 +2,16 @@
 
 As mudanças de cada versão. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.0.0] - 2026-10-25
+
+A primeira versão estável: testada à mão no app desktop, com o diff de cada arquivo no inventário e o painel mais calmo.
+
+### Adicionado
+- **Diff no inventário:** clicar num arquivo do inventário abre a mudança dele no painel (até 40 linhas, com "mais N linhas"), em verde e vermelho; arquivo novo, binário e pasta nova têm aviso próprio. **‹ Inventário** volta. No terminal, a mesma página em texto.
+
+### Mudou
+- **Mana e Vigor:** o tooltip das barras diz só a hora da renovação; a contagem que anda fica ao lado, em texto.
+
 ## [0.7.0] - 2026-10-25
 
 A HUD chega ao Claude Code CLI (terminal), desenhada para o que o terminal mostra, e o grimório e o compactar ficam mais confiáveis.
