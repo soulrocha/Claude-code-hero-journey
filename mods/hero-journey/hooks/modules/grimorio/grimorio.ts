@@ -5,6 +5,7 @@
 // O Haiku só entra, se ligado no ⚙, para reescrever um candidato numa frase.
 
 import type { Destination, Inscription, InscriptionKind, MemoryPrefs, Written } from '../../../types'
+import { joinPath } from '../../core/pasta'
 
 // Na resposta do Claude, só decisão declarada ("decidimos", "ficou decidido"):
 // a palavra "decisão" solta aparece em pendências ("aguardo sua decisão") e tabelas.
@@ -184,7 +185,9 @@ export const merge = (current: readonly Inscription[], fresh: readonly Inscripti
   return [...current, ...fresh.filter(i => !seen.has(i.text))].slice(-30)
 }
 
-export const pending = (list: readonly Inscription[]) => list.filter(i => i.sealed === undefined)
+export const isPending = (i: Inscription) => i.sealed === undefined || i.destinations.some(d => !i.sealed!.includes(d))
+
+export const pending = (list: readonly Inscription[]) => list.filter(isPending)
 
 const today = (at: number) => new Date(at).toISOString().slice(0, 10)
 
@@ -201,9 +204,10 @@ const join = (...parts: string[]) => parts.join('/').replace(/\\/g, '/').replace
 export const writesFor = (i: Inscription, d: { repo: string } & Dests, at: number): Write[] => {
   const date = today(at)
   const note = (title: string) => `---\ntipo: ${title}\ndata: ${date}\norigem: hero-journey\n---\n\n${i.text}\n`
+  const already = i.sealed ?? []
   const out: Write[] = []
   for (const dest of i.destinations) {
-    if (!available(dest, d)) continue
+    if (already.includes(dest) || !available(dest, d)) continue
     if (dest === 'agentsMd') {
       if (mentionsPrivate(i.text, d) || oneLine(i.text) === '') continue
       out.push({ dest, path: join(d.repo, 'AGENTS.md'), text: `- ${oneLine(i.text)} (${date})\n`, append: true })
@@ -294,7 +298,8 @@ export const shareablePath = (path: string, roots: readonly string[]) => {
  * com a mesma pasta final não se misturam. Sem vault, em `<repo>/.hero/tarefas/`,
  * que o grimório deixa fora do git com um `.gitignore` próprio.
  */
-export const progressHome = (repo: string, vault: string, project: string) => (vault !== '' ? join(vault, '.tarefas', project) : join(repo, '.hero', 'tarefas'))
+export const progressHome = (repo: string, vault: string, project: string) =>
+  vault !== '' ? joinPath(vault, `.tarefas/${project}`) : joinPath(repo, '.hero/tarefas')
 
 /** O prefixo do ID: as iniciais do projeto ("claude-code-hero-journey" → "CCHJ"). */
 export const taskPrefix = (name: string) => {
@@ -432,3 +437,18 @@ export const continuePrompt = (lang: 'pt' | 'en', title: string, where: string) 
   lang === 'pt'
     ? `Continue a tarefa "${title}". Leia ${where}, confira o "Como verificar" antes de mexer e siga o próximo passo.`
     : `Continue the task "${title}". Read ${where}, check its "Como verificar" (how to verify) before changing anything, and take the next step.`
+
+/** Limita a espera de uma operação assíncrona e limpa o timer ao concluir. */
+export async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}: timeout (${Math.round(ms / 1000)}s)`)), ms)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
