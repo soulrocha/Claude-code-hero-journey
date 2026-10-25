@@ -110,6 +110,8 @@ const isFromPerson = (e: unknown): boolean => {
   const kind = origin?.kind
   return agentId === undefined && (kind === undefined || kind === 'composer' || kind === 'bridge' || kind === 'user')
 }
+// Por que o último "Salvar e compactar" não salvou; o cartão mostra e oferece compactar assim mesmo.
+let saveFailed: string | undefined
 // O "Verificar" que a pessoa digita no cartão de compactar, até salvar o progresso.
 let verifyDraft = ''
 // Os avisos do Sábio que a pessoa dispensou: o do turno (pelo turnId) e o de antes de dormir (pela hora).
@@ -193,6 +195,7 @@ async function pushCard($: EngineInterface, card: Card) {
 }
 
 async function dropCard($: EngineInterface, card: Card) {
+  if (card === 'compactar') saveFailed = undefined
   await update($, cards, list => list.filter(c => c !== card))
 }
 
@@ -556,7 +559,9 @@ async function saveProgress($: EngineInterface): Promise<boolean> {
   const l = await langNow($)
   const t = DICT[l]
   const c = await read($, campaign)
+  saveFailed = undefined
   if (c === null) {
+    saveFailed = t.nothingToSave
     $.ui.toast(t.nothingToSave)
     return false
   }
@@ -614,7 +619,8 @@ async function saveProgress($: EngineInterface): Promise<boolean> {
     await refreshProgress($)
     return true
   } catch (err) {
-    $.ui.toast(t.progressFailed(err instanceof Error ? err.message : String(err)))
+    saveFailed = err instanceof Error ? err.message : String(err)
+    $.ui.toast(t.progressFailed(saveFailed))
     return false
   }
 }
@@ -1750,11 +1756,12 @@ export const register: Register = (on, options) => {
       cardTree = compactCard(
         c,
         bag?.percent === undefined ? `${COMPACT_AT}%+` : `${bag.percent}%`,
-        offer ? { task: goalOf(camp), next: await nextStepNow($), dest: await progressLabel($), onVerify: v => (verifyDraft = v) } : undefined,
+        offer ? { task: goalOf(camp), next: await nextStepNow($), dest: await progressLabel($), onVerify: v => (verifyDraft = v), failed: saveFailed } : undefined,
         {
           only,
           both: async () => {
             if (await saveProgress($)) await only()
+            else $.ui.invalidate('ui.render')
           },
           dismiss: () => dropCard($, 'compactar'),
         },
