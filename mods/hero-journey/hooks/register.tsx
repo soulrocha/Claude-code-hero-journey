@@ -24,7 +24,7 @@ import type { Ctx } from './core/ui'
 import { assignTurn, buildReport, chapterOf, closeChapter, cutAtWord, goalOf, onPrompt, prune, storeKey } from './modules/campanha/campanha'
 import { rowView } from './modules/diario/view'
 import { bandView } from './modules/faixa/view'
-import { appendDecision, available, continuePrompt, cycleDest, detect, haikuPrompt, isPending, isSubfolder, kindOn, memoryTool, merge, nextTaskId, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, withTimeout, writesFor, writtenOf } from './modules/grimorio/grimorio'
+import { appendDecision, available, continuePrompt, cycleDest, detect, haikuPrompt, isPending, isSubfolder, kindOn, memoryTool, merge, nextTaskId, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, sameNote, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, withTimeout, writesFor, writtenOf } from './modules/grimorio/grimorio'
 import type { Dests, Memory, MemoryScope, Write } from './modules/grimorio/grimorio'
 import { grimPage, marcoCard } from './modules/grimorio/view'
 import { diffOf, LABELS, listOption, makeGuard, shellTargets, verdictOf } from './modules/guarda/guarda'
@@ -380,7 +380,7 @@ async function writeOne($: EngineInterface, w: Write, memory: Memory | undefined
   // ponytail: exists→write não é atômico; duas sessões selando no mesmo instante podem colidir.
   let p = w.path
   for (let n = 2; used.has(p) || (await $.fs.exists(p)); n++) {
-    if (!used.has(p) && (await $.fs.read(p).catch(() => undefined)) === w.text) {
+    if (!used.has(p) && sameNote(await $.fs.read(p).catch(() => undefined), w.text)) {
       used.add(p)
       return p
     }
