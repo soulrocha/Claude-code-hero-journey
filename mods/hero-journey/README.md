@@ -4,7 +4,7 @@
 
 Uma HUD de RPG aconchegante para o Claude Code desktop, com os caranguejos Clawd multiclasse. A saída do Claude não muda: a HUD só acrescenta os mascotes, o painel, a faixa e os cartões.
 
-> **Beta.** Feita primeiro para o app desktop. O suporte ao Claude Code CLI (terminal) está pendente e vem depois da versão desktop.
+> **Beta.** Funciona no app desktop e no Claude Code CLI (terminal). No terminal, os Clawds são pixel art própria e cada classe tem um ícone; veja [No terminal](#no-terminal).
 
 ## Instalar
 
@@ -118,9 +118,22 @@ No pé ficam **Primeiros passos** (a língua e o que foi detectado para a memór
 
 **Privacidade:** se o texto cita o vault, o ai-memory ou qualquer caminho pessoal (`C:\…`, `/home/…`, `/Users/…`, `~/`), ele não vai para o repositório (nem `AGENTS.md`, nem `docs/decisoes`).
 
+## No terminal
+
+O terminal não desenha Svg, então a HUD usa o que ele tem:
+
+| Onde | No terminal |
+|---|---|
+| Palco | Os Clawds em pixel art própria (Raster de meio-bloco ▀), sem fundo; o acampamento com a fogueira. Grande (48×13 células) com o painel livre, 24×7 com plano, grupo ou inventário. Anima em dois quadros. Só no painel encaixado (tela cheia, 110+ colunas). |
+| Faixa, diário, spinner, recibo | O ícone da classe e o nome na cor dela. O diário mantém a linha do motor (o ctrl+o continua abrindo o resultado). O recibo entra no lugar do "Baked for 3s". |
+| Recursos | Uma linha por recurso com barra em texto; em alerta, também no fim da linha de dicas do prompt. |
+| Guarda | 🐉, o arquivo e até 4 linhas da mudança (o motor só aceita 12 linhas em volta do diálogo). |
+| Grimório, Primeiros passos, Sobre | O Sábio, o acampamento e dois Clawds em pixel art; as 19 classes em lista com ícone. |
+
 ## Limites conhecidos
 
 - **Guarda e terminal:** o guarda pergunta sempre que um comando cita um caminho protegido, salvo leituras conhecidas (`cat`, `Get-Content`, `grep`…). Por isso `git add .env` também pergunta. Um script que monta o caminho por dentro, sem citá-lo, passa. O modo **Só o diálogo nativo** apenas avisa no diálogo de permissão do Claude; se as edições estiverem liberadas automaticamente, nada pergunta.
+- **Terminal:** sem o painel encaixado (tela cheia) não há palco. O spinner é desenhado pelo mod, que conta o tempo, e não mostra os tokens. Os ícones das classes são emoji: num terminal sem emoji coloridos, aparecem como símbolos.
 - **Mobile:** o app móvel não tem campo de texto para mods. Lá, os Primeiros passos só mostram o que foi detectado; para escolher a pasta do vault, use o desktop.
 - **Seletor de pasta:** a API de mods não tem diálogo de pasta. O mod abre o do sistema (PowerShell no Windows, osascript no macOS, zenity ou kdialog no Linux); onde nenhum abre, a tela avisa e mostra um campo para digitar o caminho.
 - **Recibo do turno:** o motor desenha embaixo da resposta o texto que o hook do fim do turno devolve; a aparência dessa linha no app desktop ainda precisa ser conferida.
@@ -179,7 +192,7 @@ Estrutura:
 | `hooks/register.tsx` | Liga os módulos aos eventos. Todo o código que usa `$` fica aqui: o motor recusa o `$` passado para uma função importada (conferido no 2.1.295). |
 | `hooks/core/` | A arte em Svg (os Clawds das 19 classes em `sprites.ts`, os cenários do palco em `cenarios.ts` e o resto em `art.ts`), textos pt/en, classes, preferências, pastas do sistema e o que todas as telas usam |
 | `hooks/modules/<módulo>/` | A lógica (`<módulo>.ts`, pura) e a tela (`view.tsx`) de cada módulo |
-| `tests/` | 115 testes no motor, em desktop e terminal, incluindo as regressões dos QAs e da revisão do PR |
+| `tests/` | 121 testes no motor, em desktop e terminal, incluindo as regressões dos QAs e da revisão do PR |
 
 ---
 
@@ -187,7 +200,7 @@ Estrutura:
 
 A cozy RPG HUD for the Claude Code desktop app, with the multiclass Clawd crabs. Claude's output stays the same.
 
-> **Beta.** Built for the desktop app first. Claude Code CLI (terminal) support is pending and comes after the desktop version.
+> **Beta.** Works in the desktop app and in the Claude Code CLI (terminal). In the terminal the Clawds are purpose-made pixel art (no background, animated stage in the docked pane), each class has an icon in the band, logbook, spinner and receipt, and the guard shows 🐉 within the 12 rows the engine allows around the dialog.
 
 **Install** (tested on engine 2.1.295): `/plugin install hero-journey --marketplace soulrocha/Claude-code-hero-journey`, then type `/hero`.
 

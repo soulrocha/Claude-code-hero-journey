@@ -25,6 +25,12 @@ export const durationOf = (ms: number) => {
  * A missão só entra quando o turno mexeu em arquivos, sem falha e sem interrupção.
  */
 export const receiptOf = (r: Report, lead: string | undefined, lang: Lang) => {
+  const p = receiptParts(r, lead, lang)
+  return p === undefined ? undefined : `🦀 ${p.head}${p.parts.join(' · ')}`
+}
+
+/** As peças do recibo: a missão cumprida (ou vazio) e o resto; o terminal pinta cada uma. */
+export const receiptParts = (r: Report, lead: string | undefined, lang: Lang) => {
   if (r.actions === 0) return undefined
   const pt = lang === 'pt'
   const changed = r.files > 0 || r.added + r.removed > 0 || r.created > 0
@@ -40,5 +46,5 @@ export const receiptOf = (r: Report, lead: string | undefined, lang: Lang) => {
     durationOf(r.durationMs),
   ].filter(Boolean)
   const head = won ? `✦ ${pt ? 'Missão cumprida' : 'Mission complete'}: ${r.mission} · ` : ''
-  return `🦀 ${head}${parts.join(' · ')}`
+  return { head, parts: parts as string[] }
 }

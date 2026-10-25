@@ -9,6 +9,7 @@ import type { Member, Quest, Working } from '../../../types'
 import { classColor, petArt, rarityTone, toneOf, trailArt } from '../../core/art'
 import type { Step } from '../../core/art'
 import type { Ctx } from '../../core/ui'
+import { CLASS_ICON } from '../../core/tsprites'
 import { svg } from '../../core/ui'
 import { humanType } from '../../core/classes'
 import { questView, rarityOf } from '../painel/painel'
@@ -52,24 +53,38 @@ export const bandView = (
   const current = steps.find(s => s.state === 'now')
   const file = now?.file === undefined ? undefined : shortPath(now.file)
   if (!c.desktop) {
-    // Terminal: a mesma linha, sem Svg.
+    // Terminal: a mesma linha; no lugar do pet, o ◆ na cor da classe; a trilha do plano em texto.
+    const trail = steps.map(s => (s.state === 'done' ? '●' : s.state === 'now' ? '◐' : '○')).join('')
     return (
-      <Box key="band" flexDirection="row" gap={1}>
+      <Box key="band" flexDirection="row" columnGap={1}>
         {now ? (
-          <Text bold color={classColor(now.cls, c.palette)}>
-            {name}
+          <Text bold color={failed ? k.bad : classColor(now.cls, c.palette)}>
+            {CLASS_ICON[now.cls]} {name}
           </Text>
         ) : (
-          <Text dimColor>{idle}</Text>
+          <Text color={away.length > 0 ? 'warning' : undefined} dimColor={away.length === 0}>
+            {away.length > 0 ? '🌀' : '🔥'} {idle}
+          </Text>
         )}
-        {now && (
+        {now && file !== undefined && (
+          <Text color={rarityTone(rarityOf(file), c.palette)} wrap="truncate-end">
+            {file}
+          </Text>
+        )}
+        {now && file === undefined && (
           <Text dimColor wrap="truncate-end">
-            · {file ?? now.summary}
+            {now.summary}
           </Text>
         )}
         <Box flexGrow={1} />
-        {alert !== undefined && <Text color="warning">{alert}</Text>}
+        {alert !== undefined && (
+          <Button key="hero-alert" plain label={alert} onPress={toggle}>
+            <Text color="warning">{alert}</Text>
+          </Button>
+        )}
+        {steps.length > 0 && <Text color={k.gild}>{trail}</Text>}
         {steps.length > 0 && <Text dimColor>{`${done}/${steps.length}`}</Text>}
+        <Button key="hero-toggle" plain dimColor label={c.t.panelToggle} onPress={toggle} />
       </Box>
     )
   }
