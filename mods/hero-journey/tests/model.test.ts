@@ -9,7 +9,7 @@ import { alertOf, bagOf, countdown, readingOf, warningsOf, windowOf } from '../h
 import { leadOf, receiptOf } from '../hooks/modules/recibo/recibo'
 import { layoutOf, NAP_MS, sceneOf, STAGE_MAX, STAGE_MIN, stepWindow } from '../hooks/modules/painel/palco'
 import { DIFF_MAX_READ, DIFF_MAX_SHOWN, diffArgv, parseDiff, unquoteGitPath, untrackedDiff } from '../hooks/modules/painel/diff'
-import { appendDecision, continuePrompt, cycleDest, detect, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, writesFor } from '../hooks/modules/grimorio/grimorio'
+import { appendDecision, continuePrompt, cycleDest, detect, isPending, isSubfolder, memoryTool, mentionsPrivate, nextTaskId, oneLine, optionsFor, parseMarker, parseTask, pending, progressHome, projectFromRemote, projectName, removeLine, safeName, saveTask, shareablePath, suggest, taskPrefix, taskText, withSuffix, withTimeout, writesFor } from '../hooks/modules/grimorio/grimorio'
 
 describe('marco e página do ai-memory', () => {
   test('marco é entrega de verdade: commit, push e PR; mandar arquivo ou e-mail não', () => {
@@ -425,7 +425,7 @@ describe('grimório', () => {
 describe('salvar progresso', () => {
   test('a tarefa mora no vault (repositório público) ou no projeto, com ID pelas iniciais', async () => {
     // No vault, o nome do projeto é o do ai-memory: /work/acme/api e /work/outra/api não se misturam.
-    expect(progressHome('C:/Projetos/claude-code-hero-journey', 'C:/Vault', 'soulrocha-claude-code-hero-journey')).toBe('C:/Vault/.tarefas/soulrocha-claude-code-hero-journey')
+    expect(progressHome('C:/work/claude-code-hero-journey', 'C:/Notas', 'soulrocha-claude-code-hero-journey')).toBe('C:/Notas/.tarefas/soulrocha-claude-code-hero-journey')
     expect(progressHome('/work/acme/api', '/vault', 'acme-api')).not.toBe(progressHome('/work/outra/api', '/vault', 'outra-api'))
     expect(progressHome('/repo/loja', '', 'loja')).toBe('/repo/loja/.hero/tarefas')
     expect(taskPrefix('claude-code-hero-journey')).toBe('CCHJ')
@@ -674,5 +674,38 @@ describe('diff do inventário (D2)', () => {
     const u60 = untrackedDiff(Array.from({ length: 60 }, (_, i) => `l${i}`).join('\n'), 40, 200)
     expect(u60.lines.length).toBe(40)
     expect(u60.more).toBe(20)
+  })
+})
+
+describe('grimório: timeout, selo parcial e caminhos Windows (B2a, B2b e B2c)', () => {
+  test('withTimeout rejeita promessa pendurada e isPending/writesFor pulam destinos já selados', async () => {
+    expect(await withTimeout(Promise.resolve('ok'), 100, 'mcp')).toBe('ok')
+    let err = ''
+    try {
+      await withTimeout(new Promise<string>(() => {}), 25, 'memory_write_page')
+    } catch (e) {
+      err = e instanceof Error ? e.message : String(e)
+    }
+    expect(err).toContain('memory_write_page: timeout')
+
+    const partial: Inscription = {
+      id: 'i1',
+      kind: 'decisao',
+      text: 'Decidimos paginar no servidor.',
+      source: 'resposta',
+      destinations: ['vaultDecisao', 'aiMemory'],
+      sealed: ['vaultDecisao'],
+    }
+    expect(isPending(partial)).toBe(true)
+    expect(pending([partial]).length).toBe(1)
+    const writes = writesFor(partial, { repo: '/repo', vault: '/vault', memory: { server: 'ai-memory' } }, Date.UTC(2026, 9, 11, 12))
+    expect(writes.map(w => w.dest)).toEqual(['aiMemory'])
+
+    const full: Inscription = { ...partial, sealed: ['vaultDecisao', 'aiMemory'] }
+    expect(isPending(full)).toBe(false)
+    expect(pending([full]).length).toBe(0)
+
+    expect(progressHome('C:\\work\\meu-app', '', 'meu-app')).toBe('C:\\work\\meu-app\\.hero\\tarefas')
+    expect(progressHome('C:\\work\\meu-app', 'C:\\Notas', 'meu-app')).toBe('C:\\Notas\\.tarefas\\meu-app')
   })
 })

@@ -34,7 +34,7 @@ export const compactCard = (c: Ctx, context: string, save: SaveOffer | undefined
       <Box flexDirection="row" columnGap={3} alignItems="center" flexWrap="wrap">
         <Button key="card-dismiss" plain dimColor label={c.t.notNow} onPress={act.dismiss} />
         <Box flexGrow={1} />
-        <Button key="card-only" plain label={c.t.onlyCompact} onPress={act.only} />
+        {save !== undefined && <Button key="card-only" plain label={c.t.onlyCompact} onPress={act.only} />}
         {save !== undefined ? (
           <Button key="card-both" variant="primary" label={c.t.saveAndCompact} onPress={act.both} />
         ) : (
