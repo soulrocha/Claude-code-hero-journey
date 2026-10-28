@@ -11,7 +11,7 @@
 [![Mod](https://img.shields.io/badge/mod-function%20hooks-6cc3ec)](mods/hero-journey)
 [![Languages](https://img.shields.io/badge/languages-English%20%C2%B7%20pt--BR-b49cf0)](#%EF%B8%8F-configuration)
 [![Tokens](https://img.shields.io/badge/tokens-zero%20by%20default-8fc46a)](#-tokens-and-privacy)
-[![Tests](https://img.shields.io/badge/tests-145%20passing-8fc46a)](#%EF%B8%8F-development)
+[![CI](https://github.com/soulrocha/Claude-code-hero-journey/actions/workflows/ci.yml/badge.svg)](https://github.com/soulrocha/Claude-code-hero-journey/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-d9b26a)](LICENSE)
 [![Status](https://img.shields.io/badge/status-1.0%20stable-8fc46a)](#%EF%B8%8F-status-and-roadmap)
 
