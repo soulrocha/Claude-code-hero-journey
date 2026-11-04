@@ -13,6 +13,7 @@ import type { Art } from '../mods/hero-journey/hooks/core/doc'
 import { esc } from '../mods/hero-journey/hooks/core/doc'
 import { DICT } from '../mods/hero-journey/hooks/core/i18n'
 import type { Pose } from '../mods/hero-journey/hooks/core/sprites'
+import { receiptOf } from '../mods/hero-journey/hooks/modules/recibo/recibo'
 import type { Cls } from '../mods/hero-journey/types'
 import { calm, scopeIds } from './svg-util'
 
@@ -136,7 +137,9 @@ guard += text(CHAT_X + CHAT_W - 120, GY + 109, 'Editar no chat', { anchor: 'midd
 chat += during(6, 7, guard)
 
 // O recibo do turno, embaixo da resposta (cena final).
-const recibo = text(CHAT_X, 440, 'O login passou a validar a sessão antes de redirecionar; os testes passam.', {}) + text(CHAT_X, 470, '🦀 ✦ Missão cumprida: revisar a tela de login · Bruxo 2× · 6 ações · +24 −6 · 1 falha · 1min12s', { color: k.gild, size: 13 })
+// A linha vem do mesmo código da HUD: com falha, não há "Missão cumprida"; a recusa da guarda conta como falha e barrado.
+const linhaRecibo = receiptOf({ chapter: 1, title: '', durationMs: 72000, reason: 'answer', actions: 7, files: 2, added: 24, removed: 6, created: 0, failed: 2, refusals: ['.env.homologacao (Edit)'] }, t.className.bruxo, 'pt') ?? ''
+const recibo = text(CHAT_X, 440, 'O login passou a validar a sessão e os testes passam. O .env ficou de fora.', {}) + text(CHAT_X, 470, linhaRecibo, { color: k.gild, size: 13 })
 chat += during(7, 8, recibo, true)
 
 // A faixa acima do prompt e o prompt.
